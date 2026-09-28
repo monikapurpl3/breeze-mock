@@ -1676,6 +1676,9 @@ fn check(root: &El, bp: &Blueprint) -> Result<()> {
                 u.ip, u.protocol.port, first.key, first.origin.line
             )));
         }
+        // A capability set no real unit could report is a blueprint error, not
+        // something to discover when Breeze Core first asks.
+        crate::lan::codec::capability_pages(&u.capabilities).map_err(|e| u.origin.err(e))?;
         if let Some(r) = &u.room {
             if !rooms.contains_key(r) {
                 return Err(u.origin.err(format!(
