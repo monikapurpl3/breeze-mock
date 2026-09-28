@@ -1,0 +1,874 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The breeze-mock blueprint schema, version 1.
+
+  breeze-mock enforces everything here itself, with line numbers; this file
+  is the same rules for editors and for `xmllint - -schema`. The two are kept
+  in step by tests/schema.rs, which runs every example and every deliberately
+  broken fixture through both.
+
+  What XSD 1.0 cannot say, breeze-mock checks on top (and says so in its
+  errors): numeric bounds inside patterns (a rate of 3/2, a range whose low
+  end is above its high end), a unit's address being inside its segment,
+  overlapping segments, a unit's starting mode being one its capabilities
+  list, duplicate words in a list, <at> points in time order, models that
+  live in an included <library>, and colliding listeners.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:bm="urn:breeze-mock:blueprint:1"
+           targetNamespace="urn:breeze-mock:blueprint:1"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+
+  <!-- ============================================================ values -->
+
+  <xs:simpleType name="bool">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="true"/>
+      <xs:enumeration value="false"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="ident">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[a-z]([a-z0-9]|-[a-z0-9])*"/>
+      <xs:maxLength value="32"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="interface">
+    <xs:restriction base="bm:ident">
+      <xs:maxLength value="15"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="identList">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[a-z]([a-z0-9]|-[a-z0-9])*( [a-z]([a-z0-9]|-[a-z0-9])*)*"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Free text: no surrounding whitespace, no control characters. -->
+  <xs:simpleType name="text">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[^\s\p{Cc}]([^\p{Cc}]*[^\s\p{Cc}])?"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="decimal">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="-?[0-9]+(\.[0-9]+)?"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="nonNegative">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]+(\.[0-9]+)?"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Greater than zero. -->
+  <xs:simpleType name="positive">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="0*[1-9][0-9]*(\.[0-9]+)?|0+\.[0-9]*[1-9][0-9]*"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="integer">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="-?(0|[1-9][0-9]*)"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="whole">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="0|[1-9][0-9]*"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="port">
+    <xs:restriction base="xs:unsignedShort">
+      <xs:pattern value="[1-9][0-9]*"/>
+      <xs:minInclusive value="1"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="byte">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:pattern value="0|[1-9][0-9]*"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="percent">
+    <xs:restriction base="xs:unsignedByte">
+      <xs:pattern value="0|[1-9][0-9]*"/>
+      <xs:maxInclusive value="100"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="duration">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]+(\.[0-9]+)?(ms|s|m|h|d)"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="durationOrNever">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="never|[0-9]+(\.[0-9]+)?(ms|s|m|h|d)"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="signedDuration">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[+\-](0|[1-9][0-9]*)(s|m|h|d)"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="watts">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]+(\.[0-9]+)?(W|kW)"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- 1/30, 0.05 or 5%. Values above 1 are refused by breeze-mock. -->
+  <xs:simpleType name="rate">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="(0|[1-9][0-9]*)/[1-9][0-9]*|[0-9]+(\.[0-9]+)?%?"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="range">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]+(\.[0-9]+)?-[0-9]+(\.[0-9]+)?"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="clock">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="([01][0-9]|2[0-3]):[0-5][0-9]|24:00"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="hexBytes">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="([0-9a-f]{2}){1,32}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="token">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="auto|[0-9a-f]{128}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="key">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="auto|[0-9a-f]{64}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="hex16">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="0x[0-9a-f]{4}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="hex8">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="0x[0-9a-f]{2}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="ipv4">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- IPv4, or IPv6 in its canonical lowercase form (checked by breeze-mock). -->
+  <xs:simpleType name="ip">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])|[0-9a-f:]*:[0-9a-f:]*"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="cidr">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])/([89]|[12][0-9]|30)"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="hostname">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?)*"/>
+      <xs:maxLength value="253"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="mode">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="auto"/>
+      <xs:enumeration value="cool"/>
+      <xs:enumeration value="dry"/>
+      <xs:enumeration value="heat"/>
+      <xs:enumeration value="fan-only"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="modeList">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="(auto|cool|dry|heat|fan-only)( (auto|cool|dry|heat|fan-only))*"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="swingAxes">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="none|(vertical|horizontal)( (vertical|horizontal))?"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="turboModes">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="none|(cool|heat)( (cool|heat))?"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="fanSteps">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="(silent|low|medium|high|auto)( (silent|low|medium|high|auto))*"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="fanSetting">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="silent"/>
+      <xs:enumeration value="low"/>
+      <xs:enumeration value="medium"/>
+      <xs:enumeration value="high"/>
+      <xs:enumeration value="full"/>
+      <xs:enumeration value="auto"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="swingSetting">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="off"/>
+      <xs:enumeration value="vertical"/>
+      <xs:enumeration value="horizontal"/>
+      <xs:enumeration value="both"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- 16 to 30, in whole or half degrees. -->
+  <xs:simpleType name="setpoint">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="(1[6-9]|2[0-9])(\.(0+|50*))?|30(\.0+)?"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="insulation">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="poor|average|good|passive|(0*[1-9][0-9]*(\.[0-9]+)?|0+\.[0-9]*[1-9][0-9]*)W/K"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="deviceId">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="auto|[1-9][0-9]{0,14}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="serial">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[A-Z0-9]{32}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="ssid">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="net_[0-9a-f]{2}_[A-Za-z0-9]{1,8}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="profile">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="4.2.0"/>
+      <xs:enumeration value="4.1.1"/>
+      <xs:enumeration value="4.1.0"/>
+      <xs:enumeration value="4.0.2"/>
+      <xs:enumeration value="3.2.0"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="version">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="commit">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9a-f]{7,40}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="features">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="(batch_state|beep_control|compression|config_api|control_feedback|delete_unit|device_pairing|ed25519_auth|live_stream|metrics|programs|sleep_timer|system_info|timer_at|unit_capabilities|unit_history|unit_scan|whoami)( (batch_state|beep_control|compression|config_api|control_feedback|delete_unit|device_pairing|ed25519_auth|live_stream|metrics|programs|sleep_timer|system_info|timer_at|unit_capabilities|unit_history|unit_scan|whoami))*"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="authVersions">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="1"/>
+      <xs:enumeration value="2"/>
+      <xs:enumeration value="1 2"/>
+      <xs:enumeration value="2 1"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="authVersion">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="1"/>
+      <xs:enumeration value="2"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="apiKey">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="auto|[A-Za-z0-9_\-]{16,128}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="deviceToken">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[A-Za-z0-9_\-]{32,128}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="faultPath">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="/[^\s\p{Cc}*]*\*?"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="httpStatus">
+    <xs:restriction base="xs:unsignedShort">
+      <xs:pattern value="[1-5][0-9]{2}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="sensorNoise">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="0|0*[1-9][0-9]*(\.[0-9]+)?|0+\.[0-9]*[1-9][0-9]*"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- ========================================================= the world -->
+
+  <xs:complexType name="empty"/>
+
+  <xs:element name="blueprint">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="include" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:attribute name="href" type="bm:text" use="required"/>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="environment" type="bm:environment" minOccurs="0"/>
+        <xs:element name="building" type="bm:building" minOccurs="0"/>
+        <xs:element name="network" type="bm:network" minOccurs="0"/>
+        <xs:element name="model" type="bm:model" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="unit" type="bm:unit" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="server" type="bm:server" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="console" minOccurs="0">
+          <xs:complexType>
+            <xs:attribute name="address" type="bm:ip" use="required"/>
+            <xs:attribute name="port" type="bm:port" use="required"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:string" use="required" fixed="1"/>
+      <xs:attribute name="name" type="bm:ident" use="required"/>
+      <xs:attribute name="seed" type="bm:whole"/>
+    </xs:complexType>
+
+    <xs:key name="roomId">
+      <xs:selector xpath="bm:building/bm:floor/bm:room"/>
+      <xs:field xpath="@id"/>
+    </xs:key>
+    <xs:key name="segmentName">
+      <xs:selector xpath="bm:network/bm:segment"/>
+      <xs:field xpath="@name"/>
+    </xs:key>
+    <xs:key name="unitKey">
+      <xs:selector xpath="bm:unit"/>
+      <xs:field xpath="@key"/>
+    </xs:key>
+    <xs:keyref name="unitRoom" refer="bm:roomId">
+      <xs:selector xpath="bm:unit"/>
+      <xs:field xpath="@room"/>
+    </xs:keyref>
+    <xs:keyref name="unitSegment" refer="bm:segmentName">
+      <xs:selector xpath="bm:unit"/>
+      <xs:field xpath="@segment"/>
+    </xs:keyref>
+    <xs:keyref name="managedUnit" refer="bm:unitKey">
+      <xs:selector xpath="bm:server/bm:manage"/>
+      <xs:field xpath="@unit"/>
+    </xs:keyref>
+    <xs:unique name="modelName">
+      <xs:selector xpath="bm:model"/>
+      <xs:field xpath="@name"/>
+    </xs:unique>
+    <xs:unique name="serverName">
+      <xs:selector xpath="bm:server"/>
+      <xs:field xpath="@name"/>
+    </xs:unique>
+    <xs:unique name="domainName">
+      <xs:selector xpath="bm:server/bm:domain"/>
+      <xs:field xpath="@name"/>
+    </xs:unique>
+    <xs:unique name="unitNickname">
+      <xs:selector xpath="bm:unit/bm:epithets"/>
+      <xs:field xpath="@nickname"/>
+    </xs:unique>
+  </xs:element>
+
+  <!-- An included file: unit models to share between blueprints. -->
+  <xs:element name="library">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="model" type="bm:model" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:string" use="required" fixed="1"/>
+    </xs:complexType>
+    <xs:unique name="libraryModelName">
+      <xs:selector xpath="bm:model"/>
+      <xs:field xpath="@name"/>
+    </xs:unique>
+  </xs:element>
+
+  <xs:complexType name="environment">
+    <xs:choice>
+      <xs:element name="constant">
+        <xs:complexType>
+          <xs:attribute name="outdoor" type="bm:decimal" use="required"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="daily">
+        <xs:complexType>
+          <xs:attribute name="mean" type="bm:decimal" use="required"/>
+          <xs:attribute name="swing" type="bm:nonNegative" use="required"/>
+          <xs:attribute name="warmest" type="bm:clock" use="required"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="hourly">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="at" minOccurs="2" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:attribute name="time" type="bm:clock" use="required"/>
+                <xs:attribute name="outdoor" type="bm:decimal" use="required"/>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:choice>
+    <xs:attribute name="time-scale" type="bm:positive"/>
+    <xs:attribute name="tick" type="bm:duration"/>
+  </xs:complexType>
+
+  <xs:complexType name="building">
+    <xs:sequence>
+      <xs:element name="floor" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="room" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:attribute name="id" type="bm:ident" use="required"/>
+                <xs:attribute name="name" type="bm:text" use="required"/>
+                <xs:attribute name="area" type="bm:positive" use="required"/>
+                <xs:attribute name="height" type="bm:positive"/>
+                <xs:attribute name="insulation" type="bm:insulation"/>
+                <xs:attribute name="start" type="bm:decimal"/>
+                <xs:attribute name="gains" type="bm:watts"/>
+                <xs:attribute name="sun" type="bm:watts"/>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+          <xs:attribute name="name" type="bm:text" use="required"/>
+          <xs:attribute name="level" type="bm:integer"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="name" type="bm:text" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="network">
+    <xs:sequence>
+      <xs:element name="segment" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:attribute name="name" type="bm:ident" use="required"/>
+          <xs:attribute name="cidr" type="bm:cidr" use="required"/>
+          <xs:attribute name="mode" use="required">
+            <xs:simpleType>
+              <xs:restriction base="xs:string">
+                <xs:enumeration value="loopback"/>
+                <xs:enumeration value="dummy"/>
+                <xs:enumeration value="attach"/>
+                <xs:enumeration value="existing"/>
+              </xs:restriction>
+            </xs:simpleType>
+          </xs:attribute>
+          <xs:attribute name="interface" type="bm:interface"/>
+          <xs:attribute name="discovery" type="bm:bool"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ============================================================= units -->
+
+  <xs:complexType name="model">
+    <xs:sequence>
+      <xs:element name="identity" minOccurs="0">
+        <xs:complexType>
+          <xs:attribute name="model" type="bm:text"/>
+          <xs:attribute name="firmware" type="bm:text"/>
+          <xs:attribute name="type" type="bm:hex8"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="hardware" type="bm:hardware" minOccurs="0"/>
+      <xs:element name="capabilities" type="bm:capabilities" minOccurs="0"/>
+      <xs:element name="state" type="bm:state" minOccurs="0"/>
+      <xs:element name="epithets" minOccurs="0">
+        <xs:complexType>
+          <xs:group ref="bm:traits"/>
+          <xs:attribute name="labels" type="bm:identList"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="behaviour" type="bm:behaviour" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="name" type="bm:ident" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="unit">
+    <xs:sequence>
+      <xs:element name="epithets">
+        <xs:complexType>
+          <xs:group ref="bm:traits"/>
+          <xs:attribute name="name" type="bm:text" use="required"/>
+          <xs:attribute name="nickname" type="bm:ident"/>
+          <xs:attribute name="labels" type="bm:identList"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="identity" minOccurs="0">
+        <xs:complexType>
+          <xs:attribute name="model" type="bm:text"/>
+          <xs:attribute name="serial" type="bm:serial"/>
+          <xs:attribute name="ssid" type="bm:ssid"/>
+          <xs:attribute name="firmware" type="bm:text"/>
+          <xs:attribute name="type" type="bm:hex8"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:choice>
+        <xs:element name="v2">
+          <xs:complexType>
+            <xs:attribute name="port" type="bm:port"/>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="v3">
+          <xs:complexType>
+            <xs:attribute name="port" type="bm:port"/>
+            <xs:attribute name="token" type="bm:token" use="required"/>
+            <xs:attribute name="key" type="bm:key" use="required"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:choice>
+      <xs:element name="hardware" type="bm:hardware" minOccurs="0"/>
+      <xs:element name="capabilities" type="bm:capabilities" minOccurs="0"/>
+      <xs:element name="state" type="bm:state" minOccurs="0"/>
+      <xs:element name="behaviour" type="bm:behaviour" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="key" type="bm:ident" use="required"/>
+    <xs:attribute name="id" type="bm:deviceId"/>
+    <xs:attribute name="model" type="bm:ident"/>
+    <xs:attribute name="segment" type="bm:ident" use="required"/>
+    <xs:attribute name="ip" type="bm:ipv4" use="required"/>
+    <xs:attribute name="room" type="bm:ident"/>
+  </xs:complexType>
+
+  <!-- The traits, in this order, each at most once; <sleepy> may repeat. -->
+  <xs:group name="traits">
+    <xs:sequence>
+      <xs:element name="realistic" type="bm:empty" minOccurs="0"/>
+      <xs:element name="flaky" minOccurs="0">
+        <xs:complexType><xs:attribute name="rate" type="bm:rate"/></xs:complexType>
+      </xs:element>
+      <xs:element name="slow" minOccurs="0">
+        <xs:complexType>
+          <xs:attribute name="delay" type="bm:duration"/>
+          <xs:attribute name="jitter" type="bm:duration"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="hangs-up" minOccurs="0">
+        <xs:complexType><xs:attribute name="after" type="bm:duration"/></xs:complexType>
+      </xs:element>
+      <xs:element name="warmup-lock" minOccurs="0">
+        <xs:complexType><xs:attribute name="for" type="bm:duration"/></xs:complexType>
+      </xs:element>
+      <xs:element name="eco-cool-only" type="bm:empty" minOccurs="0"/>
+      <xs:element name="no-flaps-when-off" type="bm:empty" minOccurs="0"/>
+      <xs:element name="no-turbo-in" minOccurs="0">
+        <xs:complexType><xs:attribute name="modes" type="bm:modeList" use="required"/></xs:complexType>
+      </xs:element>
+      <xs:element name="sleepy" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:attribute name="from" type="bm:clock" use="required"/>
+          <xs:attribute name="to" type="bm:clock" use="required"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="forgetful" minOccurs="0">
+        <xs:complexType><xs:attribute name="every" type="bm:duration" use="required"/></xs:complexType>
+      </xs:element>
+      <xs:element name="estranged" type="bm:empty" minOccurs="0"/>
+      <xs:element name="deaf-after-handshake" minOccurs="0">
+        <xs:complexType><xs:attribute name="for" type="bm:duration"/></xs:complexType>
+      </xs:element>
+      <xs:element name="noisy-sensor" minOccurs="0">
+        <xs:complexType><xs:attribute name="amplitude" type="bm:positive"/></xs:complexType>
+      </xs:element>
+      <xs:element name="laggy" minOccurs="0">
+        <xs:complexType><xs:attribute name="lag" type="bm:duration" use="required"/></xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:group>
+
+  <xs:complexType name="hardware">
+    <xs:attribute name="cooling" type="bm:watts" use="required"/>
+    <xs:attribute name="heating" type="bm:watts" use="required"/>
+    <xs:attribute name="indoor-sensor" type="bm:bool"/>
+    <xs:attribute name="outdoor-sensor" type="bm:bool"/>
+    <xs:attribute name="indoor-offset" type="bm:decimal"/>
+    <xs:attribute name="outdoor-offset" type="bm:decimal"/>
+  </xs:complexType>
+
+  <xs:complexType name="capabilities">
+    <xs:sequence>
+      <xs:element name="record" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:attribute name="id" type="bm:hex16" use="required"/>
+          <xs:attribute name="value" type="bm:hexBytes" use="required"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="modes" type="bm:modeList" use="required"/>
+    <xs:attribute name="swing" type="bm:swingAxes" use="required"/>
+    <xs:attribute name="fan" type="bm:fanSteps" use="required"/>
+    <xs:attribute name="turbo" type="bm:turboModes"/>
+    <xs:attribute name="fan-custom" type="bm:bool"/>
+    <xs:attribute name="eco" type="bm:bool"/>
+    <xs:attribute name="freeze-protection" type="bm:bool"/>
+    <xs:attribute name="display" type="bm:bool"/>
+    <xs:attribute name="humidity" type="bm:bool"/>
+    <xs:attribute name="buzzer" type="bm:bool"/>
+    <xs:attribute name="fahrenheit" type="bm:bool"/>
+    <xs:attribute name="cool" type="bm:range"/>
+    <xs:attribute name="auto" type="bm:range"/>
+    <xs:attribute name="heat" type="bm:range"/>
+    <xs:attribute name="half-degrees" type="bm:bool"/>
+    <xs:attribute name="pages">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="1"/>
+          <xs:enumeration value="2"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+  </xs:complexType>
+
+  <xs:complexType name="state">
+    <xs:attribute name="power" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="on"/>
+          <xs:enumeration value="off"/>
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+    <xs:attribute name="mode" type="bm:mode" use="required"/>
+    <xs:attribute name="target" type="bm:setpoint" use="required"/>
+    <xs:attribute name="fan" type="bm:fanSetting"/>
+    <xs:attribute name="swing" type="bm:swingSetting"/>
+    <xs:attribute name="eco" type="bm:bool"/>
+    <xs:attribute name="turbo" type="bm:bool"/>
+    <xs:attribute name="sleep" type="bm:bool"/>
+    <xs:attribute name="fahrenheit" type="bm:bool"/>
+    <xs:attribute name="display" type="bm:bool"/>
+    <xs:attribute name="humidity" type="bm:percent"/>
+    <xs:attribute name="error" type="bm:byte"/>
+  </xs:complexType>
+
+  <xs:complexType name="behaviour">
+    <xs:attribute name="reply-delay" type="bm:duration"/>
+    <xs:attribute name="jitter" type="bm:duration"/>
+    <xs:attribute name="drop-rate" type="bm:rate"/>
+    <xs:attribute name="idle-hangup" type="bm:durationOrNever"/>
+    <xs:attribute name="heat-warmup" type="bm:durationOrNever"/>
+    <xs:attribute name="eco-cool-only" type="bm:bool"/>
+    <xs:attribute name="no-flaps-when-off" type="bm:bool"/>
+    <xs:attribute name="reject-handshake" type="bm:bool"/>
+    <xs:attribute name="post-handshake-deafness" type="bm:duration"/>
+    <xs:attribute name="session-lifetime" type="bm:durationOrNever"/>
+    <xs:attribute name="sensor-noise" type="bm:sensorNoise"/>
+    <xs:attribute name="report-lag" type="bm:duration"/>
+  </xs:complexType>
+
+  <!-- =========================================================== servers -->
+
+  <xs:complexType name="server">
+    <xs:sequence>
+      <xs:element name="build">
+        <xs:complexType>
+          <xs:attribute name="profile" type="bm:profile" use="required"/>
+          <xs:attribute name="version" type="bm:version"/>
+          <xs:attribute name="commit" type="bm:commit"/>
+          <xs:attribute name="add" type="bm:features"/>
+          <xs:attribute name="remove" type="bm:features"/>
+          <xs:attribute name="auth-versions" type="bm:authVersions"/>
+          <xs:attribute name="min-auth-version" type="bm:authVersion"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="host" minOccurs="0">
+        <xs:complexType>
+          <xs:attribute name="hostname" type="bm:hostname" use="required"/>
+          <xs:attribute name="os" type="bm:text"/>
+          <xs:attribute name="kernel" type="bm:text"/>
+          <xs:attribute name="arch">
+            <xs:simpleType>
+              <xs:restriction base="xs:string">
+                <xs:enumeration value="x86_64"/>
+                <xs:enumeration value="aarch64"/>
+                <xs:enumeration value="armv7l"/>
+                <xs:enumeration value="riscv64"/>
+                <xs:enumeration value="ppc64le"/>
+                <xs:enumeration value="s390x"/>
+              </xs:restriction>
+            </xs:simpleType>
+          </xs:attribute>
+          <xs:attribute name="init">
+            <xs:simpleType>
+              <xs:restriction base="xs:string">
+                <xs:enumeration value="systemd"/>
+                <xs:enumeration value="openrc"/>
+                <xs:enumeration value="runit"/>
+                <xs:enumeration value="s6"/>
+                <xs:enumeration value="sysv"/>
+                <xs:enumeration value="procd"/>
+                <xs:enumeration value="launchd"/>
+                <xs:enumeration value="windows"/>
+                <xs:enumeration value="none"/>
+              </xs:restriction>
+            </xs:simpleType>
+          </xs:attribute>
+          <xs:attribute name="cpu" type="bm:text"/>
+          <xs:attribute name="cpus" type="bm:whole"/>
+          <xs:attribute name="memory-mb" type="bm:whole"/>
+          <xs:attribute name="timezone" type="bm:text"/>
+          <xs:attribute name="utc-offset" type="bm:signedDuration"/>
+          <xs:attribute name="container">
+            <xs:simpleType>
+              <xs:restriction base="xs:string">
+                <xs:enumeration value="docker"/>
+                <xs:enumeration value="podman"/>
+                <xs:enumeration value="lxc"/>
+                <xs:enumeration value="systemd-nspawn"/>
+              </xs:restriction>
+            </xs:simpleType>
+          </xs:attribute>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="listen" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:attribute name="address" type="bm:ip" use="required"/>
+          <xs:attribute name="port" type="bm:port" use="required"/>
+          <xs:attribute name="tls" type="bm:bool"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="domain" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:choice minOccurs="0">
+            <xs:element name="self-signed" type="bm:empty"/>
+            <xs:element name="files">
+              <xs:complexType>
+                <xs:attribute name="cert" type="bm:text" use="required"/>
+                <xs:attribute name="key" type="bm:text" use="required"/>
+              </xs:complexType>
+            </xs:element>
+          </xs:choice>
+          <xs:attribute name="name" type="bm:hostname" use="required"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="pairing" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="device" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:attribute name="label" type="bm:text" use="required"/>
+                <xs:attribute name="token" type="bm:deviceToken" use="required"/>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+          <xs:attribute name="approve">
+            <xs:simpleType>
+              <xs:restriction base="xs:string">
+                <xs:enumeration value="manual"/>
+                <xs:enumeration value="auto"/>
+                <xs:enumeration value="never"/>
+              </xs:restriction>
+            </xs:simpleType>
+          </xs:attribute>
+          <xs:attribute name="code-ttl" type="bm:duration"/>
+          <xs:attribute name="token-ttl" type="bm:duration"/>
+          <xs:attribute name="lan-only" type="bm:bool"/>
+          <xs:attribute name="skew" type="bm:duration"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="manage" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:attribute name="unit" type="bm:ident" use="required"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="fault" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:attribute name="method">
+            <xs:simpleType>
+              <xs:restriction base="xs:string">
+                <xs:enumeration value="GET"/>
+                <xs:enumeration value="POST"/>
+                <xs:enumeration value="PUT"/>
+                <xs:enumeration value="PATCH"/>
+                <xs:enumeration value="DELETE"/>
+              </xs:restriction>
+            </xs:simpleType>
+          </xs:attribute>
+          <xs:attribute name="path" type="bm:faultPath" use="required"/>
+          <xs:attribute name="rate" type="bm:rate"/>
+          <xs:attribute name="status" type="bm:httpStatus"/>
+          <xs:attribute name="body" type="bm:text"/>
+          <xs:attribute name="delay" type="bm:duration"/>
+          <xs:attribute name="hang-up" type="bm:bool"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="name" type="bm:ident" use="required"/>
+    <xs:attribute name="api-key" type="bm:apiKey"/>
+    <xs:attribute name="latency" type="bm:duration"/>
+    <xs:attribute name="clock-offset" type="bm:signedDuration"/>
+    <xs:attribute name="state-dir" type="bm:text"/>
+  </xs:complexType>
+
+</xs:schema>

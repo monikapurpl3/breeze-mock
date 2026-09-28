@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- expect: must be private | xsd: accepts -->
+<blueprint xmlns="urn:breeze-mock:blueprint:1" version="1" name="t">
+  <network>
+    <segment name="lo" cidr="8.8.8.0/24" mode="dummy"/>
+  </network>
+  <unit key="u" segment="lo" ip="8.8.8.2">
+    <epithets name="U"/>
+    <v3 token="auto" key="auto"/>
+  </unit>
+</blueprint>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Unit models: blueprints for the kinds of air conditioner a flat might have.
+  A <unit model="..."> starts from one of these; whatever the unit gives
+  itself replaces the model's element of the same name, except <epithets>,
+  which add up.
+-->
+<library xmlns="urn:breeze-mock:blueprint:1" version="1">
+
+  <!-- A 3.5 kW wall split, as sold by the million: every mode, both flaps. -->
+  <model name="split-12">
+    <identity model="MSAGBU-12HRFN8" firmware="1.2.3"/>
+    <hardware cooling="3.5kW" heating="3.8kW"/>
+    <capabilities modes="auto cool dry heat fan-only" swing="vertical horizontal"
+                  fan="low medium high auto" eco="true" turbo="cool heat"
+                  display="true" buzzer="true" cool="16-30" auto="17-30" heat="16-30"/>
+    <epithets labels="split">
+      <realistic/>
+    </epithets>
+  </model>
+
+  <!-- A small unit for a small room: no horizontal flap, no turbo, and an
+       outdoor unit without its own temperature probe. -->
+  <model name="split-09">
+    <identity model="MSAG-09" firmware="1.1.0"/>
+    <hardware cooling="2.6kW" heating="2.9kW" outdoor-sensor="false"/>
+    <capabilities modes="cool dry heat fan-only" swing="vertical"
+                  fan="low medium high auto" eco="true" turbo="none"/>
+    <epithets labels="split small">
+      <realistic/>
+    </epithets>
+  </model>
+
+</library>

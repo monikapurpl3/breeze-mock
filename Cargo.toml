@@ -1,0 +1,43 @@
+[package]
+name = "breeze-mock"
+version = "0.1.0"
+edition = "2021"
+description = "Mock Breeze Core servers and emulated Midea air conditioners, described in XML, for testing and debugging"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/monikapurpl3/breeze-mock"
+publish = false
+
+# The protocol, auth and control-validation code is Breeze Core's own, pinned
+# to a release: an emulated unit is only worth testing against if it speaks
+# exactly what Breeze Core expects, and copying the codecs here would let the
+# two drift apart the first time either changed.
+[dependencies]
+breeze-proto = { git = "https://github.com/monikapurpl3/breeze-core-native", tag = "v4.2.0" }
+breeze-auth = { git = "https://github.com/monikapurpl3/breeze-core-native", tag = "v4.2.0" }
+breeze-store = { git = "https://github.com/monikapurpl3/breeze-core-native", tag = "v4.2.0" }
+
+# Blueprints. A read-only DOM with node positions, so every error names the
+# line and column it came from.
+roxmltree = "0.20"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+sha2 = "0.10"
+getrandom = "0.2"
+# SO_REUSEADDR and SO_BROADCAST for the discovery sockets; std offers neither.
+socket2 = "0.5"
+# TLS for mock domains, with a certificate per hostname chosen by SNI. ring
+# rather than aws-lc-rs, which needs cmake and a C toolchain per target.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rcgen = { version = "0.13", default-features = false, features = ["ring", "pem"] }
+
+[dev-dependencies]
+# The real client, driving the emulated units: the strongest test there is
+# that Breeze Core can talk to them.
+breeze-device = { git = "https://github.com/monikapurpl3/breeze-core-native", tag = "v4.2.0" }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The smallest useful blueprint: one unit on loopback, one mock server. -->
+<blueprint xmlns="urn:breeze-mock:blueprint:1" version="1" name="minimal">
+  <network>
+    <segment name="lo" cidr="127.66.0.0/24" mode="loopback"/>
+  </network>
+  <unit key="unit" segment="lo" ip="127.66.0.2">
+    <epithets name="Mock unit"/>
+    <v3 token="auto" key="auto"/>
+  </unit>
+  <server name="mock">
+    <build profile="4.2.0"/>
+    <listen address="127.0.0.1" port="8420"/>
+    <manage unit="unit"/>
+  </server>
+</blueprint>

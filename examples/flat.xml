@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  A flat with three air conditioners, and two mock Breeze Cores: a current
+  one, and one pretending to be the Python 3.2.0 line with a flaky batch
+  endpoint.
+
+  The "home" segment is a dummy interface, so the units have real private
+  addresses a real Breeze Core can scan and pair (needs CAP_NET_ADMIN). The
+  "lab" unit is on loopback and needs nothing.
+-->
+<blueprint xmlns="urn:breeze-mock:blueprint:1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:schemaLocation="urn:breeze-mock:blueprint:1 ../schema/blueprint.xsd"
+           version="1" name="flat" seed="1">
+
+  <include href="models.xml"/>
+
+  <!-- Early spring: 2 degrees at dawn, 10 in the afternoon. -->
+  <environment time-scale="1" tick="1s">
+    <daily mean="6" swing="8" warmest="15:00"/>
+  </environment>
+
+  <building name="Flat">
+    <floor name="Ground floor" level="0">
+      <room id="bedroom" name="Bedroom" area="14" height="2.6" insulation="average"
+            start="18.5" gains="80W" sun="300W"/>
+      <room id="living" name="Living room" area="28" height="2.6" insulation="good"
+            start="20" gains="250W" sun="900W"/>
+      <room id="kitchen" name="Kitchen" area="10" height="2.6" insulation="poor"
+            start="19" gains="400W"/>
+    </floor>
+  </building>
+
+  <network>
+    <segment name="home" cidr="10.77.1.0/24" mode="dummy"/>
+    <segment name="lab" cidr="127.77.2.0/24" mode="loopback" discovery="false"/>
+  </network>
+
+  <unit key="bedroom" model="split-12" segment="home" ip="10.77.1.21" room="bedroom">
+    <epithets name="Bedroom" nickname="bedroom" labels="night"/>
+    <v3 token="auto" key="auto"/>
+    <state power="off" mode="heat" target="21.5" fan="auto" swing="off"/>
+  </unit>
+
+  <unit key="living" model="split-12" segment="home" ip="10.77.1.22" room="living">
+    <epithets name="Living room" nickname="living">
+      <flaky rate="1/10"/>
+    </epithets>
+    <v3 token="auto" key="auto"/>
+    <state power="on" mode="heat" target="22" fan="medium" swing="vertical"/>
+  </unit>
+
+  <unit key="kitchen" model="split-09" segment="home" ip="10.77.1.23" room="kitchen">
+    <epithets name="Kitchen" nickname="kitchen">
+      <sleepy from="02:00" to="02:15"/>
+    </epithets>
+    <v3 token="auto" key="auto"/>
+    <state power="off" mode="cool" target="24"/>
+  </unit>
+
+  <!-- A unit with nothing wrong with it, on loopback, for fast tests. -->
+  <unit key="bench" segment="lab" ip="127.77.2.10">
+    <epithets name="Test bench" nickname="bench"/>
+    <v3 port="6444" token="auto" key="auto"/>
+    <hardware cooling="3.5kW" heating="3.8kW"/>
+    <state power="on" mode="cool" target="23" fan="auto"/>
+    <behaviour reply-delay="0ms"/>
+  </unit>
+
+  <server name="home" api-key="auto" latency="20ms">
+    <build profile="4.2.0"/>
+    <host hostname="homeserver" os="AlmaLinux 9.6 (Sage Margay)" arch="x86_64"
+          timezone="Europe/Zagreb" utc-offset="+2h" cpus="4" memory-mb="3771"/>
+    <listen address="127.0.0.1" port="8420"/>
+    <listen address="127.0.0.1" port="8443" tls="true"/>
+    <domain name="breeze.test">
+      <self-signed/>
+    </domain>
+    <pairing approve="auto" lan-only="true"/>
+    <manage unit="bedroom"/>
+    <manage unit="living"/>
+    <manage unit="kitchen"/>
+  </server>
+
+  <server name="legacy" api-key="auto">
+    <build profile="3.2.0"/>
+    <listen address="127.0.0.1" port="8421"/>
+    <pairing approve="manual"/>
+    <manage unit="bench"/>
+    <fault method="GET" path="/api/units/state" rate="1/10" status="503"
+           body="{&quot;detail&quot;:&quot;unit unreachable&quot;}"/>
+  </server>
+
+  <console address="127.0.0.1" port="8499"/>
+</blueprint>

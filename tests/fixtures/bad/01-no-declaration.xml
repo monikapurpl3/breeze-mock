@@ -1,0 +1,10 @@
+<!-- expect: must start with <?xml | xsd: accepts -->
+<blueprint xmlns="urn:breeze-mock:blueprint:1" version="1" name="t">
+  <network>
+    <segment name="lo" cidr="127.66.0.0/24" mode="loopback"/>
+  </network>
+  <unit key="u" segment="lo" ip="127.66.0.2">
+    <epithets name="U"/>
+    <v3 token="auto" key="auto"/>
+  </unit>
+</blueprint>
