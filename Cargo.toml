@@ -30,6 +30,9 @@ socket2 = "0.5"
 # rather than aws-lc-rs, which needs cmake and a C toolchain per target.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rcgen = { version = "0.13", default-features = false, features = ["ring", "pem"] }
+# Clean up dummy interfaces and address aliases on Ctrl-C and SIGTERM, which
+# is how systemd stops a service.
+ctrlc = { version = "3", features = ["termination"] }
 
 [dev-dependencies]
 # The real client, driving the emulated units: the strongest test there is
