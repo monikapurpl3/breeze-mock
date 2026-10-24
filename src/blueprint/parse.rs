@@ -284,9 +284,16 @@ struct BehaviourPatch {
 }
 
 pub fn load(path: &Path) -> Result<Blueprint> {
+    let text = read(path, None)?;
+    parse(path, &text)
+}
+
+/// A blueprint from text, as if read from `path`: messages name it, and
+/// includes and other relative paths are taken from its directory. Nothing is
+/// read but what it includes.
+pub fn parse(path: &Path, text: &str) -> Result<Blueprint> {
     let file = path.to_path_buf();
-    let text = read(&file, None)?;
-    let doc = xml::parse_document(&file, &text)?;
+    let doc = xml::parse_document(&file, text)?;
     let root = El::new(doc.root_element(), &file)?;
     if root.name() != "blueprint" {
         return Err(root.err("the root element of a blueprint must be <blueprint>"));
@@ -773,6 +780,7 @@ fn unit(el: &El, models: &BTreeMap<String, (ModelDef, Error)>, seed: u64) -> Res
     let identity = Identity {
         name: ep.name.clone().expect("a unit's epithets require name="),
         nickname: ep.nickname.clone(),
+        labels: ep.labels.clone(),
         model: idef.model.unwrap_or_else(|| {
             model_name
                 .clone()

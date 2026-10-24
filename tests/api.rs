@@ -19,27 +19,31 @@ use serde_json::{json, Value};
 fn init() {
     static ONCE: Once = Once::new();
     ONCE.call_once(|| {
-        let dir = std::env::temp_dir().join(format!("bm-api-data-{}", std::process::id()));
+        let tmp = std::env::temp_dir();
+        let own = format!("bm-api-data-{}", std::process::id());
+        for e in std::fs::read_dir(&tmp).unwrap().flatten() {
+            let name = e.file_name().to_string_lossy().into_owned();
+            if name.starts_with("bm-api-data-") && name != own {
+                let _ = std::fs::remove_dir_all(e.path());
+            }
+        }
+        let dir = tmp.join(own);
         std::fs::create_dir_all(&dir).unwrap();
         std::env::set_var("BREEZE_MOCK_DATA", &dir);
         breeze_mock::log::set_level(0);
     });
 }
 
+fn text(name: &str, body: &str) -> String {
+    format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+         <blueprint xmlns=\"urn:breeze-mock:blueprint:1\" version=\"1\" name=\"{name}\" seed=\"5\">\n{body}\n</blueprint>\n"
+    )
+}
+
 fn load(name: &str, body: &str) -> Blueprint {
     init();
-    let dir = std::env::temp_dir().join(format!("bm-api-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join(format!("{name}.xml"));
-    std::fs::write(
-        &path,
-        format!(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
-             <blueprint xmlns=\"urn:breeze-mock:blueprint:1\" version=\"1\" name=\"{name}\" seed=\"5\">\n{body}\n</blueprint>\n"
-        ),
-    )
-    .unwrap();
-    blueprint::load(&path).unwrap_or_else(|e| panic!("{e}"))
+    blueprint::parse(std::path::Path::new(&format!("{name}.xml")), &text(name, body)).unwrap_or_else(|e| panic!("{e}"))
 }
 
 fn start(name: &str, body: &str) -> (Blueprint, Running) {
@@ -194,6 +198,40 @@ fn a_profile_is_the_release_it_names() {
     assert_eq!(s["connection"]["behind_proxy_enabled"], false);
     assert_eq!(s["connection"]["scheme"], "http");
     assert_eq!(s["settings"]["behind_proxy"], false);
+}
+
+#[test]
+fn a_killed_runs_directory_goes_at_the_next_start_and_a_live_one_stays() {
+    init();
+    let tmp = std::env::temp_dir();
+    let make = |name: &str, age: Duration| {
+        let dir = tmp.join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("config.json"), "{}").unwrap();
+        let lock = std::fs::File::create(dir.join(".lock")).unwrap();
+        lock.set_modified(std::time::SystemTime::now() - age).unwrap();
+        (dir, lock)
+    };
+    let pid = std::process::id();
+    let (abandoned, l) = make(&format!("breeze-mock-sweep-{pid}-abandoned"), Duration::from_secs(3600));
+    drop(l);
+    let (live, held) = make(&format!("breeze-mock-sweep-{pid}-live"), Duration::from_secs(3600));
+    held.try_lock().unwrap();
+    let (fresh, l) = make(&format!("breeze-mock-sweep-{pid}-fresh"), Duration::ZERO);
+    drop(l);
+
+    let (_bp, running) = start("sweep", &units("127.91.9"));
+    let own = running.dir().to_path_buf();
+    assert!(own.join(".lock").is_file(), "a run holds a lock in its own directory");
+    assert!(!abandoned.exists(), "an abandoned run directory is removed");
+    assert!(live.join("config.json").is_file(), "a live run's directory is left alone");
+    assert!(fresh.join("config.json").is_file(), "one just created, perhaps not locked yet, is left alone");
+    drop(running);
+    assert!(!own.exists(), "a run removes its own directory");
+
+    drop(held);
+    let _ = std::fs::remove_dir_all(live);
+    let _ = std::fs::remove_dir_all(fresh);
 }
 
 #[test]
@@ -405,9 +443,13 @@ fn the_console_changes_what_breeze_core_reads() {
 
 #[test]
 fn an_exported_config_is_breeze_cores_own() {
-    let bp = load("export", &format!("{}\n{}", units("127.91.7"), server("s", "4.3.2", 29171, "")));
-    let path = std::env::temp_dir().join(format!("bm-export-{}.json", std::process::id()));
-    breeze_mock::export::breeze_core_config(&bp.source, Some("s"), Some(&path)).unwrap();
+    let body = format!("{}\n{}", units("127.91.7"), server("s", "4.3.2", 29171, ""));
+    let bp = load("export", &body);
+    // export reads a file; this process's data directory goes with it.
+    let source = breeze_mock::data::root().join("export.xml");
+    std::fs::write(&source, text("export", &body)).unwrap();
+    let path = breeze_mock::data::root().join("export.json");
+    breeze_mock::export::breeze_core_config(&source, Some("s"), Some(&path)).unwrap();
     let text = std::fs::read_to_string(&path).unwrap();
     assert!(!text.ends_with('\n'), "Breeze Core writes no trailing newline");
     let config: breeze_store::AppConfig = breeze_store::load(&path).unwrap();

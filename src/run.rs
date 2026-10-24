@@ -1,21 +1,93 @@
 //! `breeze-mock run`: a blueprint, brought to life until Ctrl-C.
 
+use std::fs::File;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime};
 
 use crate::blueprint::{self, Blueprint, ProtocolVersion, SegmentMode};
 use crate::lan::{device, discovery};
 use crate::sim::{self, World};
-use crate::{api, console, info, net};
+use crate::{api, console, debug, info, net};
 
 /// Where this run keeps the stores of servers without a state-dir; removed
 /// when the run ends. Unique per start, so tests in one process can each run
-/// a world.
+/// a world, and stamped with the time, so a process id the system hands out
+/// again never lands in a directory a dead run left behind.
 fn run_dir(bp: &Blueprint) -> PathBuf {
     static N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    std::env::temp_dir().join(format!("breeze-mock-{}-{}-{n}", bp.name, std::process::id()))
+    let t = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    std::env::temp_dir().join(format!("breeze-mock-{}-{}-{n}-{t}", bp.name, std::process::id()))
+}
+
+/// The run directory's lock, held for as long as the run lives. A run that is
+/// killed outright cannot remove its directory, but the system drops its lock,
+/// and that is how a later start tells an abandoned directory from a live one.
+struct RunDir {
+    path: PathBuf,
+    lock: Mutex<Option<File>>,
+}
+
+impl RunDir {
+    fn create(path: PathBuf) -> Result<RunDir, String> {
+        crate::data::private_dir(&path).map_err(|e| format!("cannot create {}: {e}", path.display()))?;
+        let lock = File::create(path.join(LOCK)).map_err(|e| format!("cannot create {}: {e}", path.display()))?;
+        lock.try_lock()
+            .map_err(|e| format!("cannot lock {}: {e}", path.join(LOCK).display()))?;
+        Ok(RunDir {
+            path,
+            lock: Mutex::new(Some(lock)),
+        })
+    }
+
+    /// Unlock first: Windows will not delete a file that is still open.
+    fn remove(&self) {
+        if let Ok(mut l) = self.lock.lock() {
+            l.take();
+        }
+        let _ = std::fs::remove_dir_all(&self.path);
+    }
+}
+
+/// So a start that fails halfway leaves nothing behind either.
+impl Drop for RunDir {
+    fn drop(&mut self) {
+        self.remove();
+    }
+}
+
+const LOCK: &str = ".lock";
+
+/// Remove the run directories of runs that were killed outright: those whose
+/// lock nobody holds. One whose lock file is only seconds old is left alone,
+/// as a run may be between creating it and locking it.
+fn sweep_abandoned() {
+    let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) else {
+        return;
+    };
+    for e in entries.flatten() {
+        let path = e.path();
+        let ours = e.file_name().to_str().is_some_and(|n| n.starts_with("breeze-mock-"));
+        if !ours || !path.is_dir() {
+            continue;
+        }
+        let lock = path.join(LOCK);
+        let old = std::fs::metadata(&lock)
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .is_some_and(|age| age > Duration::from_secs(10));
+        // Taken and let go at once, before the removal.
+        let abandoned = old && File::open(&lock).is_ok_and(|f| f.try_lock().is_ok());
+        if abandoned && std::fs::remove_dir_all(&path).is_ok() {
+            debug!("run", "removed {}, left by a run that was killed", path.display());
+        }
+    }
 }
 
 /// A world that is running: what `run` keeps alive until Ctrl-C, and what a
@@ -25,13 +97,20 @@ pub struct Running {
     pub world: sim::Shared,
     pub servers: Vec<Arc<api::front::MockServer>>,
     pub guard: Arc<net::Guard>,
-    pub dir: PathBuf,
+    dir: Arc<RunDir>,
+}
+
+impl Running {
+    /// Where the run keeps the stores of servers without a state-dir.
+    pub fn dir(&self) -> &Path {
+        &self.dir.path
+    }
 }
 
 impl Drop for Running {
     fn drop(&mut self) {
         self.guard.release();
-        let _ = std::fs::remove_dir_all(&self.dir);
+        self.dir.remove();
     }
 }
 
@@ -39,7 +118,8 @@ impl Drop for Running {
 /// servers and the console. Returns once everything is listening.
 pub fn start(bp: &Blueprint) -> Result<Running, String> {
     let guard = Arc::new(net::setup(bp)?);
-    let dir = run_dir(bp);
+    sweep_abandoned();
+    let dir = Arc::new(RunDir::create(run_dir(bp))?);
 
     let world: sim::Shared = Arc::new(Mutex::new(World::new(bp)));
     sim::spawn_ticker(Arc::clone(&world));
@@ -60,8 +140,7 @@ pub fn start(bp: &Blueprint) -> Result<Running, String> {
     let servers = if bp.servers.is_empty() {
         Vec::new()
     } else {
-        std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
-        api::start(bp, &dir)?
+        api::start(bp, &dir.path)?
     };
     if let Some(c) = &bp.console {
         console::serve(
@@ -88,11 +167,11 @@ pub fn run(path: &Path) -> Result<(), String> {
     let running = start(&bp)?;
     {
         let guard = Arc::clone(&running.guard);
-        let dir = running.dir.clone();
+        let dir = Arc::clone(&running.dir);
         ctrlc::set_handler(move || {
             info!("run", "stopping");
             guard.release();
-            let _ = std::fs::remove_dir_all(&dir);
+            dir.remove();
             std::process::exit(0);
         })
         .map_err(|e| format!("cannot catch Ctrl-C: {e}"))?;
@@ -149,6 +228,11 @@ fn summary(bp: &Blueprint, path: &Path) {
     }
     if let Some(c) = &bp.console {
         s.push_str(&format!("  console: http://{}:{}/\n", c.address, c.port));
+        // It has no login: anyone who can reach it can change the weather,
+        // take units offline and approve pairings on the mock servers.
+        if !c.address.is_loopback() {
+            s.push_str("    (not on loopback: anyone who can reach this address can use it)\n");
+        }
     }
     s.push_str(&format!(
         "  a real Breeze Core for these units: breeze-mock export breeze-core-config {} -o config.json\n",

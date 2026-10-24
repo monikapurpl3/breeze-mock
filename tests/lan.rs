@@ -18,12 +18,7 @@ use breeze_proto::ac::types::{FanSpeed, Mode, SwingMode};
 use breeze_proto::lan::LanError;
 
 fn blueprint(name: &str, unit: &str) -> Blueprint {
-    let dir = std::env::temp_dir().join(format!("bm-lan-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join(format!("{name}.xml"));
-    std::fs::write(
-        &path,
-        format!(
+    let text = format!(
             r#"<?xml version="1.0" encoding="UTF-8"?>
 <blueprint xmlns="urn:breeze-mock:blueprint:1" version="1" name="{name}" seed="5">
   <environment><constant outdoor="3"/></environment>
@@ -31,10 +26,8 @@ fn blueprint(name: &str, unit: &str) -> Blueprint {
   {unit}
 </blueprint>
 "#
-        ),
-    )
-    .unwrap();
-    blueprint::load(&path).unwrap()
+    );
+    blueprint::parse(std::path::Path::new(&format!("{name}.xml")), &text).unwrap()
 }
 
 /// Start the blueprint's first unit on a free loopback port.

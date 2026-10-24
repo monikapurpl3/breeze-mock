@@ -207,4 +207,6 @@ fn a_mock_server_answers_as_breeze_core_does() {
     assert_eq!(m["not_applied"], r["not_applied"]);
     assert_eq!(shape(&m), shape(&r));
     drop(running);
+    drop(_real);
+    let _ = std::fs::remove_dir_all(&data);
 }

@@ -243,6 +243,8 @@ fn world(c: &Console) -> Value {
             json!({
                 "key": u.def.key,
                 "name": u.def.identity.name,
+                "nickname": u.def.identity.nickname,
+                "labels": u.def.identity.labels,
                 "id": u.def.id.to_string(),
                 "address": format!("{}:{}", u.def.ip, u.def.protocol.port),
                 "protocol": if u.def.protocol.version == crate::blueprint::ProtocolVersion::V3 { "V3" } else { "V2" },

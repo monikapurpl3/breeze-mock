@@ -213,12 +213,7 @@ mod tests {
     use breeze_proto::ac::types::{Mode, SwingMode};
 
     fn world(extra_unit: &str, epithets: &str) -> World {
-        let dir = std::env::temp_dir().join(format!("bm-sim-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join(format!("w{}.xml", extra_unit.len() + epithets.len()));
-        std::fs::write(
-            &path,
-            format!(
+        let text = format!(
                 r#"<?xml version="1.0" encoding="UTF-8"?>
 <blueprint xmlns="urn:breeze-mock:blueprint:1" version="1" name="t" seed="3">
   <environment><constant outdoor="0"/></environment>
@@ -231,10 +226,9 @@ mod tests {
   </unit>
 </blueprint>
 "#
-            ),
-        )
-        .unwrap();
-        World::starting_at(&crate::blueprint::load(&path).unwrap(), 12.0)
+        );
+        let bp = crate::blueprint::parse(std::path::Path::new("sim-test.xml"), &text).unwrap();
+        World::starting_at(&bp, 12.0)
     }
 
     fn command(w: &World, f: impl FnOnce(&mut Command)) -> Command {

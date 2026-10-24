@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Units and a mock server that the rest of the LAN can reach: a Breeze Core
+  on another machine finds the units by scanning, and phones pair with the
+  mock server, without touching the Breeze Core already running there.
+
+  Replace 192.168.1.50 with this machine's own LAN address, and the cidr=
+  with its network (ipconfig on Windows, ip -4 addr on Linux). An "existing"
+  segment uses addresses the machine already has, so on Windows, where
+  breeze-mock cannot add addresses, the units share this one and each has a
+  port of its own; Breeze Core reads the port from a unit's discovery reply.
+
+  On Windows the first run asks whether to let breeze-mock through the
+  firewall, for private networks. Without that, nothing on the LAN reaches it.
+-->
+<blueprint xmlns="urn:breeze-mock:blueprint:1" version="1" name="lan" seed="1">
+  <environment time-scale="1">
+    <daily mean="22" swing="6" warmest="15:00"/>
+  </environment>
+
+  <network>
+    <segment name="home" cidr="192.168.1.0/24" mode="existing"/>
+  </network>
+
+  <unit key="bedroom" segment="home" ip="192.168.1.50">
+    <epithets name="Mock bedroom">
+      <realistic/>
+    </epithets>
+    <v3 port="6444" token="auto" key="auto"/>
+    <state power="off" mode="heat" target="21.5"/>
+  </unit>
+  <unit key="living" segment="home" ip="192.168.1.50">
+    <epithets name="Mock living room">
+      <realistic/>
+    </epithets>
+    <v3 port="6454" token="auto" key="auto"/>
+    <state power="on" mode="cool" target="24" fan="medium"/>
+  </unit>
+  <unit key="study" segment="home" ip="192.168.1.50">
+    <epithets name="Mock study"/>
+    <v2 port="6464"/>
+    <capabilities modes="cool dry fan-only" swing="vertical" fan="low medium high auto"/>
+    <state power="off" mode="cool" target="25"/>
+  </unit>
+
+  <!-- Off the port a real Breeze Core uses, so both can run on one machine. -->
+  <server name="mock">
+    <build profile="4.3.2"/>
+    <listen address="192.168.1.50" port="18420"/>
+    <pairing approve="manual"/>
+    <manage unit="bedroom"/>
+    <manage unit="living"/>
+    <manage unit="study"/>
+  </server>
+
+  <console address="127.0.0.1" port="18499"/>
+</blueprint>

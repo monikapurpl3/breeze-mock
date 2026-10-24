@@ -186,10 +186,7 @@ mod tests {
 
     #[test]
     fn breeze_proto_reads_a_unit_from_its_reply() {
-        let path = std::env::temp_dir().join(format!("bm-disc-{}.xml", std::process::id()));
-        std::fs::write(
-            &path,
-            r#"<?xml version="1.0" encoding="UTF-8"?>
+        let text = r#"<?xml version="1.0" encoding="UTF-8"?>
 <blueprint xmlns="urn:breeze-mock:blueprint:1" version="1" name="t">
   <network><segment name="home" cidr="10.77.1.0/24" mode="existing"/></network>
   <unit key="u" id="153931628470980" segment="home" ip="10.77.1.21">
@@ -202,10 +199,8 @@ mod tests {
     <v2/>
   </unit>
 </blueprint>
-"#,
-        )
-        .unwrap();
-        let bp = crate::blueprint::load(&path).unwrap();
+"#;
+        let bp = crate::blueprint::parse(std::path::Path::new("discovery-test.xml"), text).unwrap();
         let d = discover::parse(bp.units[0].ip, &super::reply(&bp.units[0])).unwrap();
         assert_eq!(d.version, Version::V3);
         assert_eq!(d.id, 153_931_628_470_980);

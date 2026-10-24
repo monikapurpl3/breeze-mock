@@ -6,4 +6,4 @@ pub mod profiles;
 pub mod xml;
 
 pub use model::*;
-pub use parse::{load, load_library};
+pub use parse::{load, load_library, parse};

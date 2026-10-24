@@ -165,6 +165,8 @@ pub struct Identity {
     /// What Breeze Core and the apps show.
     pub name: String,
     pub nickname: Option<String>,
+    /// Free words for grouping units; the console lists them.
+    pub labels: Vec<String>,
     pub model: String,
     /// 32 characters, as discovery reports it.
     pub serial: String,

@@ -71,8 +71,8 @@
     <build profile="4.3.2"/>
     <host hostname="homeserver" os="AlmaLinux 9.6 (Sage Margay)" arch="x86_64"
           timezone="Europe/Zagreb" utc-offset="+2h" cpus="4"/>
-    <listen address="127.0.0.1" port="8420"/>
-    <listen address="127.0.0.1" port="8443" tls="true"/>
+    <listen address="127.0.0.1" port="18420"/>
+    <listen address="127.0.0.1" port="18443" tls="true"/>
     <domain name="breeze.test">
       <self-signed/>
     </domain>
@@ -84,12 +84,12 @@
 
   <server name="legacy" api-key="auto">
     <build profile="3.2.0"/>
-    <listen address="127.0.0.1" port="8421"/>
+    <listen address="127.0.0.1" port="18421"/>
     <pairing approve="manual"/>
     <manage unit="bench"/>
     <fault method="GET" path="/api/units/state" rate="1/10" status="503"
            body="{&quot;detail&quot;:&quot;unit unreachable&quot;}"/>
   </server>
 
-  <console address="127.0.0.1" port="8499"/>
+  <console address="127.0.0.1" port="18499"/>
 </blueprint>
