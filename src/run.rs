@@ -10,30 +10,38 @@ use crate::sim::{self, World};
 use crate::{api, console, info, net};
 
 /// Where this run keeps the stores of servers without a state-dir; removed
-/// when the run ends.
+/// when the run ends. Unique per start, so tests in one process can each run
+/// a world.
 fn run_dir(bp: &Blueprint) -> PathBuf {
-    std::env::temp_dir().join(format!("breeze-mock-{}-{}", bp.name, std::process::id()))
+    static N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    std::env::temp_dir().join(format!("breeze-mock-{}-{}-{n}", bp.name, std::process::id()))
 }
 
-pub fn run(path: &Path) -> Result<(), String> {
-    let bp = blueprint::load(path).map_err(|e| e.to_string())?;
-    info!("run", "blueprint {:?}: {} unit(s), {} server(s)", bp.name, bp.units.len(), bp.servers.len());
+/// A world that is running: what `run` keeps alive until Ctrl-C, and what a
+/// test holds for as long as it needs it. Dropping it takes the network setup
+/// down and removes the run's stores; the threads end with the process.
+pub struct Running {
+    pub world: sim::Shared,
+    pub servers: Vec<Arc<api::front::MockServer>>,
+    pub guard: Arc<net::Guard>,
+    pub dir: PathBuf,
+}
 
-    let guard = Arc::new(net::setup(&bp)?);
-    let dir = run_dir(&bp);
-    {
-        let guard = Arc::clone(&guard);
-        let dir = dir.clone();
-        ctrlc::set_handler(move || {
-            info!("run", "stopping");
-            guard.release();
-            let _ = std::fs::remove_dir_all(&dir);
-            std::process::exit(0);
-        })
-        .map_err(|e| format!("cannot catch Ctrl-C: {e}"))?;
+impl Drop for Running {
+    fn drop(&mut self) {
+        self.guard.release();
+        let _ = std::fs::remove_dir_all(&self.dir);
     }
+}
 
-    let world: sim::Shared = Arc::new(Mutex::new(World::new(&bp)));
+/// Bring a blueprint to life: network, simulation, units, discovery, mock
+/// servers and the console. Returns once everything is listening.
+pub fn start(bp: &Blueprint) -> Result<Running, String> {
+    let guard = Arc::new(net::setup(bp)?);
+    let dir = run_dir(bp);
+
+    let world: sim::Shared = Arc::new(Mutex::new(World::new(bp)));
     sim::spawn_ticker(Arc::clone(&world));
 
     let mut answering = Vec::new();
@@ -53,7 +61,7 @@ pub fn run(path: &Path) -> Result<(), String> {
         Vec::new()
     } else {
         std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
-        api::start(&bp, &dir)?
+        api::start(bp, &dir)?
     };
     if let Some(c) = &bp.console {
         console::serve(
@@ -64,7 +72,31 @@ pub fn run(path: &Path) -> Result<(), String> {
             SocketAddr::new(c.address, c.port),
         )?;
     }
+    Ok(Running {
+        world,
+        servers,
+        guard,
+        dir,
+    })
+}
 
+/// `breeze-mock run`: start, say how to reach everything, and keep going
+/// until Ctrl-C or SIGTERM.
+pub fn run(path: &Path) -> Result<(), String> {
+    let bp = blueprint::load(path).map_err(|e| e.to_string())?;
+    info!("run", "blueprint {:?}: {} unit(s), {} server(s)", bp.name, bp.units.len(), bp.servers.len());
+    let running = start(&bp)?;
+    {
+        let guard = Arc::clone(&running.guard);
+        let dir = running.dir.clone();
+        ctrlc::set_handler(move || {
+            info!("run", "stopping");
+            guard.release();
+            let _ = std::fs::remove_dir_all(&dir);
+            std::process::exit(0);
+        })
+        .map_err(|e| format!("cannot catch Ctrl-C: {e}"))?;
+    }
     summary(&bp, path);
     loop {
         std::thread::park();
