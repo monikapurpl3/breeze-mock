@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- expect: expected one of: 4.2.0 | xsd: rejects -->
+<!-- expect: expected one of: 4.3.2 | xsd: rejects -->
 <blueprint xmlns="urn:breeze-mock:blueprint:1" version="1" name="t">
   <network>
     <segment name="lo" cidr="127.66.0.0/24" mode="loopback"/>

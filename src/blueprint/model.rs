@@ -321,9 +321,6 @@ pub struct Server {
     pub faults: Vec<Fault>,
     /// Added to every response's latency.
     pub latency: Duration,
-    /// How far the server's clock is from the real one, in seconds. For
-    /// testing a client's clock-skew handling of signed requests.
-    pub clock_offset: i64,
     /// Where it keeps devices.json and the rest between runs. `None` keeps
     /// everything in memory.
     pub state_dir: Option<PathBuf>,

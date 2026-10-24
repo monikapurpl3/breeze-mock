@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  A bench: three units on loopback, one of each kind of behaviour worth
+  testing a client against, and no mock server: this one is for pointing a
+  real Breeze Core at.
+
+    breeze-mock run examples/bench.xml
+    breeze-mock export breeze-core-config examples/bench.xml -o config.json
+    AC_CONFIG_DIR=. BREEZE_PORT=18433 breeze-core serve
+
+  Kitchen is off; Back Room cannot do eco and refuses turbo while heating.
+  Placeholder names only.
+-->
+<blueprint xmlns="urn:breeze-mock:blueprint:1" version="1" name="bench" seed="7">
+  <environment><constant outdoor="12"/></environment>
+  <network><segment name="lo" cidr="127.0.0.0/24" mode="loopback"/></network>
+  <unit key="kitchen" segment="lo" ip="127.0.0.2">
+    <epithets name="Kitchen"/>
+    <v3 token="auto" key="auto"/>
+    <capabilities modes="auto cool dry heat fan-only" swing="vertical horizontal" fan="low medium high auto" eco="true" turbo="cool"/>
+    <state power="off" mode="heat" target="21.5" fan="auto" swing="off"/>
+  </unit>
+  <unit key="living" segment="lo" ip="127.0.0.3">
+    <epithets name="Living room"/>
+    <v3 token="auto" key="auto"/>
+    <capabilities modes="auto cool dry heat fan-only" swing="vertical horizontal" fan="low medium high auto" eco="true" turbo="cool"/>
+    <state power="on" mode="cool" target="24" fan="medium" swing="vertical"/>
+  </unit>
+  <unit key="back" segment="lo" ip="127.0.0.4">
+    <epithets name="Back Room"/>
+    <v3 token="auto" key="auto"/>
+    <capabilities modes="auto cool heat fan-only" swing="vertical" fan="low high auto" eco="false" turbo="cool"/>
+    <state power="on" mode="heat" target="22" fan="auto" swing="off"/>
+  </unit>
+</blueprint>

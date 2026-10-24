@@ -12,9 +12,17 @@ publish = false
 # exactly what Breeze Core expects, and copying the codecs here would let the
 # two drift apart the first time either changed.
 [dependencies]
-breeze-proto = { git = "https://github.com/monikapurpl3/breeze-core-native", tag = "v4.2.0" }
-breeze-auth = { git = "https://github.com/monikapurpl3/breeze-core-native", tag = "v4.2.0" }
-breeze-store = { git = "https://github.com/monikapurpl3/breeze-core-native", tag = "v4.2.0" }
+breeze-proto = { git = "https://github.com/monikapurpl3/breeze-core-native", tag = "v4.3.2" }
+breeze-auth = { git = "https://github.com/monikapurpl3/breeze-core-native", tag = "v4.3.2" }
+breeze-store = { git = "https://github.com/monikapurpl3/breeze-core-native", tag = "v4.3.2" }
+# A mock server is Breeze Core's own HTTP layer, unmodified, in front of the
+# emulated units: pairing, timers, the scheduler, the stream and every response
+# shape are the real ones because they are the real code. breeze-mock adds
+# only what a mock is for, in front of it (src/api/). Without the `cloud`
+# feature: a mock must never reach Midea, so a request carrying cloud
+# credentials gets the 501 a router build of Breeze Core gives.
+breeze-http = { git = "https://github.com/monikapurpl3/breeze-core-native", tag = "v4.3.2", default-features = false }
+breeze-device = { git = "https://github.com/monikapurpl3/breeze-core-native", tag = "v4.3.2" }
 
 # Blueprints. A read-only DOM with node positions, so every error names the
 # line and column it came from.
@@ -35,9 +43,6 @@ rcgen = { version = "0.13", default-features = false, features = ["ring", "pem"]
 ctrlc = { version = "3", features = ["termination"] }
 
 [dev-dependencies]
-# The real client, driving the emulated units: the strongest test there is
-# that Breeze Core can talk to them.
-breeze-device = { git = "https://github.com/monikapurpl3/breeze-core-native", tag = "v4.2.0" }
 
 [profile.release]
 opt-level = "s"

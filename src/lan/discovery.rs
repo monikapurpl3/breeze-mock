@@ -4,6 +4,7 @@
 //! Core's scan sweeps a subnet; one wildcard socket per port also answers the
 //! broadcast hello, replying from each unit's own address, as real units do.
 
+use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
 
 use breeze_proto::discover::{DISCOVERY_MSG, DISCOVERY_PORTS};
@@ -62,40 +63,44 @@ fn reusable_udp(addr: SocketAddr) -> std::io::Result<UdpSocket> {
 }
 
 /// Start answering hellos for the given units (indices into the world).
+///
+/// One socket per address and port, answering for every unit at that address:
+/// units may share one (on Windows they share this PC's LAN address, one port
+/// each), and a datagram is delivered to only one of several sockets bound to
+/// the same address. Each unit answers with its own id and port, and Breeze
+/// Core's scan keeps one result per id, so all of them are found.
 pub fn start(world: Shared, units: Vec<usize>) {
-    let defs: Vec<(usize, Unit)> = {
+    let mut by_ip: BTreeMap<Ipv4Addr, Vec<(usize, Unit)>> = BTreeMap::new();
+    {
         let Ok(w) = world.lock() else { return };
-        units.iter().map(|&i| (i, w.units[i].def.clone())).collect()
-    };
-    let mut own = Vec::new();
-    for (i, u) in &defs {
-        for port in DISCOVERY_PORTS {
-            let addr = SocketAddr::new(IpAddr::V4(u.ip), port);
+        for &i in &units {
+            let u = w.units[i].def.clone();
+            by_ip.entry(u.ip).or_default().push((i, u));
+        }
+    }
+    for port in DISCOVERY_PORTS {
+        let mut groups: Vec<Group> = Vec::new();
+        for (ip, members) in &by_ip {
+            let addr = SocketAddr::new(IpAddr::V4(*ip), port);
             match reusable_udp(addr) {
                 Ok(sock) => {
                     if let Ok(clone) = sock.try_clone() {
-                        own.push((*i, u.clone(), clone));
+                        groups.push((*ip, members.clone(), clone));
                     }
-                    let (world, u, i) = (world.clone(), u.clone(), *i);
-                    std::thread::spawn(move || answer(&world, i, &u, &sock));
+                    let (world, members) = (world.clone(), members.clone());
+                    std::thread::spawn(move || answer(&world, &members, &sock));
                 }
-                Err(e) => error!(u.key, "cannot answer discovery on {addr}: {e}"),
+                Err(e) => error!("discovery", "cannot answer hellos on {addr}: {e}"),
             }
         }
-    }
-    // Broadcast hellos arrive on a wildcard socket; every unit answers from
-    // its own address, so the reply comes from where a real unit's would.
-    for port in DISCOVERY_PORTS {
+        // Broadcast hellos arrive on a wildcard socket. Every unit the asker
+        // can reach answers, from its own address, as a real unit's reply
+        // would come; a loopback unit cannot answer a hello from the LAN.
         let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port);
         match reusable_udp(addr) {
             Ok(sock) => {
                 let world = world.clone();
-                let senders: Vec<(usize, Unit, UdpSocket)> = own
-                    .iter()
-                    .filter(|(_, _, s)| s.local_addr().is_ok_and(|a| a.port() == port))
-                    .filter_map(|(i, u, s)| s.try_clone().ok().map(|s| (*i, u.clone(), s)))
-                    .collect();
-                std::thread::spawn(move || broadcast(&world, &sock, &senders));
+                std::thread::spawn(move || broadcast(&world, &sock, &groups));
             }
             Err(e) => error!(
                 "discovery",
@@ -105,11 +110,14 @@ pub fn start(world: Shared, units: Vec<usize>) {
     }
 }
 
+/// The units at one address, and the socket that answers for them there.
+type Group = (Ipv4Addr, Vec<(usize, Unit)>, UdpSocket);
+
 fn is_hello(buf: &[u8]) -> bool {
     buf == DISCOVERY_MSG
 }
 
-fn answer(world: &Shared, i: usize, u: &Unit, sock: &UdpSocket) {
+fn answer(world: &Shared, members: &[(usize, Unit)], sock: &UdpSocket) {
     let mut buf = [0u8; 512];
     loop {
         let Ok((n, from)) = sock.recv_from(&mut buf) else {
@@ -117,16 +125,26 @@ fn answer(world: &Shared, i: usize, u: &Unit, sock: &UdpSocket) {
         };
         if !is_hello(&buf[..n]) {
             debug!(
-                u.key,
+                "discovery",
                 "ignoring a {n}-byte datagram from {from} that is not a discovery hello"
             );
             continue;
         }
-        send(world, i, u, sock, from);
+        for (i, u) in members {
+            send(world, *i, u, sock, from);
+        }
     }
 }
 
-fn broadcast(world: &Shared, sock: &UdpSocket, senders: &[(usize, Unit, UdpSocket)]) {
+fn reachable(unit_ip: Ipv4Addr, from: SocketAddr) -> bool {
+    let from_loop = match from.ip() {
+        IpAddr::V4(a) => a.is_loopback(),
+        IpAddr::V6(a) => a.is_loopback(),
+    };
+    unit_ip.is_loopback() == from_loop
+}
+
+fn broadcast(world: &Shared, sock: &UdpSocket, groups: &[Group]) {
     let mut buf = [0u8; 512];
     loop {
         let Ok((n, from)) = sock.recv_from(&mut buf) else {
@@ -135,8 +153,13 @@ fn broadcast(world: &Shared, sock: &UdpSocket, senders: &[(usize, Unit, UdpSocke
         if !is_hello(&buf[..n]) {
             continue;
         }
-        for (i, u, s) in senders {
-            send(world, *i, u, s, from);
+        for (ip, members, s) in groups {
+            if !reachable(*ip, from) {
+                continue;
+            }
+            for (i, u) in members {
+                send(world, *i, u, s, from);
+            }
         }
     }
 }

@@ -37,7 +37,31 @@ pub struct Profile {
 
 /// Newest first. The Python line (3.x) is the reference the native line was
 /// measured against; it lacks exactly the two features native added.
+///
+/// 4.3.x advertise exactly what 4.2.0 did: those releases added ports, `fetch`,
+/// the proxy helper and cloud pairing in the panel, but no feature flag.
 pub const PROFILES: &[Profile] = &[
+    Profile {
+        name: "4.3.2",
+        version: "4.3.2",
+        commit: "2ef0d09",
+        missing: &[],
+        auth_versions: &[1, 2],
+    },
+    Profile {
+        name: "4.3.1",
+        version: "4.3.1",
+        commit: "7ac99db",
+        missing: &[],
+        auth_versions: &[1, 2],
+    },
+    Profile {
+        name: "4.3.0",
+        version: "4.3.0",
+        commit: "f954fe9",
+        missing: &[],
+        auth_versions: &[1, 2],
+    },
     Profile {
         name: "4.2.0",
         version: "4.2.0",

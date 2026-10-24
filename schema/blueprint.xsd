@@ -292,6 +292,9 @@
 
   <xs:simpleType name="profile">
     <xs:restriction base="xs:string">
+      <xs:enumeration value="4.3.2"/>
+      <xs:enumeration value="4.3.1"/>
+      <xs:enumeration value="4.3.0"/>
       <xs:enumeration value="4.2.0"/>
       <xs:enumeration value="4.1.1"/>
       <xs:enumeration value="4.1.0"/>
@@ -867,7 +870,6 @@
     <xs:attribute name="name" type="bm:ident" use="required"/>
     <xs:attribute name="api-key" type="bm:apiKey"/>
     <xs:attribute name="latency" type="bm:duration"/>
-    <xs:attribute name="clock-offset" type="bm:signedDuration"/>
     <xs:attribute name="state-dir" type="bm:text"/>
   </xs:complexType>
 

@@ -68,7 +68,7 @@
   </unit>
 
   <server name="home" api-key="auto" latency="20ms">
-    <build profile="4.2.0"/>
+    <build profile="4.3.2"/>
     <host hostname="homeserver" os="AlmaLinux 9.6 (Sage Margay)" arch="x86_64"
           timezone="Europe/Zagreb" utc-offset="+2h" cpus="4" memory-mb="3771"/>
     <listen address="127.0.0.1" port="8420"/>

@@ -9,7 +9,7 @@
     <v3 token="auto" key="auto"/>
   </unit>
   <server name="mock">
-    <build profile="4.2.0"/>
+    <build profile="4.3.2"/>
     <listen address="127.0.0.1" port="8420"/>
     <manage unit="unit"/>
   </server>

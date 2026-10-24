@@ -1269,7 +1269,16 @@ fn server(el: &El, base: &Path, seed: u64) -> Result<Server> {
         )?
         .flatten();
     let latency = el.get("latency", xml::duration)?.unwrap_or_default();
-    let clock_offset = el.get("clock-offset", xml::signed_seconds)?.unwrap_or(0);
+    // Removed, not just unknown, so a blueprint written for it is told why. A
+    // mock server is Breeze Core's own HTTP layer, which reads the system
+    // clock; a server clock that differs from the client's is tested by
+    // setting the client's clock off instead.
+    if el.get("clock-offset", |s| Ok(s.to_string()))?.is_some() {
+        return Err(el.err(
+            "clock-offset= was removed: a mock server runs Breeze Core's own code, which keeps \
+             the system clock. To test clock-skew handling, set the client's clock off instead",
+        ));
+    }
     let state_dir = el.get("state-dir", path_in(base))?;
     el.done()?;
 
@@ -1374,7 +1383,6 @@ fn server(el: &El, base: &Path, seed: u64) -> Result<Server> {
         units,
         faults,
         latency,
-        clock_offset,
         state_dir,
     })
 }
@@ -1388,7 +1396,7 @@ fn build(el: &El) -> Result<Build> {
         if parts.len() == 3 && parts.iter().all(|p| xml::unsigned::<u32>(p).is_ok()) {
             Ok(s.to_string())
         } else {
-            Err("a version is three whole numbers, like 4.2.0".into())
+            Err("a version is three whole numbers, like 4.3.2".into())
         }
     })?;
     let commit = el.get("commit", |s| {
