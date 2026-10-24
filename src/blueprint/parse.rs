@@ -426,7 +426,7 @@ pub fn load_library(path: &Path) -> Result<Vec<String>> {
 fn library_models(root: &El, models: &mut BTreeMap<String, (ModelDef, Error)>) -> Result<()> {
     root.need("version", xml::one_of(&["1"]))?;
     root.done()?;
-    let mut seq = Seq::new(&root, &["model"])?;
+    let mut seq = Seq::new(root, &["model"])?;
     for m in seq.take("model", 1, usize::MAX)? {
         let (name, def) = model(&m)?;
         if let Some((_, first)) = models.get(&name) {
