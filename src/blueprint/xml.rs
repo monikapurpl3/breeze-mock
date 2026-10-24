@@ -748,7 +748,7 @@ pub fn ident(s: &str) -> std::result::Result<String, String> {
         && !s.contains("--");
     if !ok {
         return Err(
-            "expected a lowercase identifier like lijeva-soba (a-z, 0-9, single hyphens)".into(),
+            "expected a lowercase identifier like living-room (a-z, 0-9, single hyphens)".into(),
         );
     }
     if s.len() > 32 {
@@ -843,8 +843,8 @@ mod tests {
         assert!(decimal(".5").is_err());
         assert!(decimal("4.").is_err());
         assert!(unsigned::<u16>("08").is_err());
-        assert_eq!(ident("lijeva-soba").unwrap(), "lijeva-soba");
-        assert!(ident("Lijeva").is_err());
+        assert_eq!(ident("living-room").unwrap(), "living-room");
+        assert!(ident("Living").is_err());
         assert!(ident("a--b").is_err());
         assert!(list(one_of(&["a", "b"]))("a  b").is_err());
         assert!(list(one_of(&["a", "b"]))("a a").is_err());
