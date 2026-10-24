@@ -163,6 +163,12 @@ pub fn start(bp: &Blueprint) -> Result<Running, String> {
 /// until Ctrl-C or SIGTERM.
 pub fn run(path: &Path) -> Result<(), String> {
     let bp = blueprint::load(path).map_err(|e| e.to_string())?;
+    // The embedded Breeze Cores' own access log would show every request as
+    // coming from the front, and twice with -v, which logs them properly.
+    // Breeze Core reads this per request; one set by the user stands.
+    if std::env::var_os("BREEZE_LOG").is_none() {
+        std::env::set_var("BREEZE_LOG", "0");
+    }
     info!("run", "blueprint {:?}: {} unit(s), {} server(s)", bp.name, bp.units.len(), bp.servers.len());
     let running = start(&bp)?;
     {
@@ -196,8 +202,11 @@ fn summary(bp: &Blueprint, path: &Path) {
                 u.protocol.port,
                 if u.protocol.version == ProtocolVersion::V3 { "V3" } else { "V2" },
                 u.id,
-                match seg.mode {
-                    SegmentMode::Loopback => "  (this machine only)",
+                match (u.protocol.version, &seg.mode) {
+                    // Breeze Core 4 has no V2 client: it adds such a unit and
+                    // then answers 503 for it, and so does a mock server.
+                    (ProtocolVersion::V2, _) => "  (V2: Breeze Core 4 drives V3 units only)",
+                    (_, SegmentMode::Loopback) => "  (this machine only)",
                     _ => "",
                 }
             ));

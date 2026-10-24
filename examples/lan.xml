@@ -8,7 +8,10 @@
   with its network (ipconfig on Windows, ip -4 addr on Linux). An "existing"
   segment uses addresses the machine already has, so on Windows, where
   breeze-mock cannot add addresses, the units share this one and each has a
-  port of its own; Breeze Core reads the port from a unit's discovery reply.
+  port of its own. A Breeze Core scan lists them all, but adds a unit by
+  address, so give that Breeze Core the exported config instead:
+
+    breeze-mock export breeze-core-config lan.xml -o config.json
 
   On Windows the first run asks whether to let breeze-mock through the
   firewall, for private networks. Without that, nothing on the LAN reaches it.
@@ -38,7 +41,7 @@
   </unit>
   <unit key="study" segment="home" ip="192.168.1.50">
     <epithets name="Mock study"/>
-    <v2 port="6464"/>
+    <v3 port="6464" token="auto" key="auto"/>
     <capabilities modes="cool dry fan-only" swing="vertical" fan="low medium high auto"/>
     <state power="off" mode="cool" target="25"/>
   </unit>

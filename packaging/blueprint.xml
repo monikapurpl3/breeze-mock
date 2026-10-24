@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The packaged default: /etc/breeze-mock/blueprint.xml, read by
+  breeze-mock.service. Three units on loopback and one mock Breeze Core, all on
+  this machine only, on ports clear of a real Breeze Core's 8420. Edit it, or
+  replace it with one of /usr/share/breeze-mock/examples/, then:
+
+    breeze-mock check /etc/breeze-mock/blueprint.xml
+    systemctl restart breeze-mock
+
+  The reference is /usr/share/doc/breeze-mock/blueprint.md; the schema is
+  /usr/share/breeze-mock/schema/blueprint.xsd.
+-->
+<blueprint xmlns="urn:breeze-mock:blueprint:1" version="1" name="default">
+  <environment>
+    <daily mean="18" swing="8" warmest="15:00"/>
+  </environment>
+
+  <network>
+    <segment name="lo" cidr="127.66.0.0/24" mode="loopback"/>
+  </network>
+
+  <unit key="bedroom" segment="lo" ip="127.66.0.2">
+    <epithets name="Bedroom"/>
+    <v3 token="auto" key="auto"/>
+    <state power="off" mode="heat" target="21.5" fan="auto"/>
+  </unit>
+  <unit key="living" segment="lo" ip="127.66.0.3">
+    <epithets name="Living room"/>
+    <v3 token="auto" key="auto"/>
+    <state power="on" mode="cool" target="24" fan="medium" swing="vertical"/>
+  </unit>
+  <unit key="kitchen" segment="lo" ip="127.66.0.4">
+    <epithets name="Kitchen"/>
+    <v3 token="auto" key="auto"/>
+    <state power="off" mode="cool" target="25"/>
+  </unit>
+
+  <server name="mock">
+    <build profile="4.3.2"/>
+    <listen address="127.0.0.1" port="18420"/>
+    <pairing approve="auto"/>
+    <manage unit="bedroom"/>
+    <manage unit="living"/>
+    <manage unit="kitchen"/>
+  </server>
+
+  <console address="127.0.0.1" port="18499"/>
+</blueprint>

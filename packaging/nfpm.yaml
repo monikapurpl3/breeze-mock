@@ -1,0 +1,86 @@
+# nfpm: the breeze-mock RPM, for x86_64 and aarch64. Rendered by build.sh
+# with ARCH (amd64 or arm64) and VERSION in the environment.
+name: breeze-mock
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+release: 1
+section: devel
+maintainer: monikapurpl3 <monika.purpl3@gmail.com>
+description: |
+  Emulated Midea air conditioners and mock Breeze Core servers, for testing.
+  Units and servers are described in one XML file. The units speak the real
+  LAN protocol; the mock servers are Breeze Core's own HTTP layer, made into
+  any release from 3.2.0 on, with faults, TLS and a console added.
+vendor: breeze-mock
+homepage: https://github.com/monikapurpl3/breeze-mock
+license: AGPL-3.0-or-later
+
+# `ip`, for dummy and attach segments. One static executable otherwise.
+depends:
+  - iproute
+
+contents:
+  - dst: /etc/breeze-mock
+    type: dir
+    file_info:
+      mode: 0755
+  - dst: /usr/share/breeze-mock
+    type: dir
+    file_info:
+      mode: 0755
+  - dst: /usr/share/breeze-mock/examples
+    type: dir
+    file_info:
+      mode: 0755
+  - dst: /usr/share/breeze-mock/schema
+    type: dir
+    file_info:
+      mode: 0755
+  - dst: /usr/share/doc/breeze-mock
+    type: dir
+    file_info:
+      mode: 0755
+  - dst: /usr/share/licenses/breeze-mock
+    type: dir
+    file_info:
+      mode: 0755
+  # nfpm expands no variables in a src: build.sh copies each architecture's
+  # binary here before packaging it.
+  - src: ./current/breeze-mock
+    dst: /usr/bin/breeze-mock
+    file_info:
+      mode: 0755
+  - src: ./breeze-mock.service
+    dst: /usr/lib/systemd/system/breeze-mock.service
+    file_info:
+      mode: 0644
+  - src: ./blueprint.xml
+    dst: /etc/breeze-mock/blueprint.xml
+    type: config|noreplace
+    file_info:
+      mode: 0644
+  - src: ./share/schema/blueprint.xsd
+    dst: /usr/share/breeze-mock/schema/blueprint.xsd
+    file_info:
+      mode: 0644
+  - src: ./share/examples/
+    dst: /usr/share/breeze-mock/examples/
+    file_info:
+      mode: 0644
+  - src: ./share/doc/
+    dst: /usr/share/doc/breeze-mock/
+    file_info:
+      mode: 0644
+  - src: ./share/LICENSE
+    dst: /usr/share/licenses/breeze-mock/LICENSE
+    type: license
+    file_info:
+      mode: 0644
+
+scripts:
+  postinstall: ./scripts/postinstall.sh
+  postremove: ./scripts/postremove.sh
+
+rpm:
+  compression: zstd

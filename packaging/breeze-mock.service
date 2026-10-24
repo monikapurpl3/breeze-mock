@@ -1,0 +1,33 @@
+[Unit]
+Description=breeze-mock: emulated Midea air conditioners and mock Breeze Core servers
+Documentation=file:///usr/share/doc/breeze-mock/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/breeze-mock run /etc/breeze-mock/blueprint.xml
+# The blueprints' certificate authorities and the servers' stores live here.
+# A server's state-dir= must be under it too: nothing else is writable.
+Environment=BREEZE_MOCK_DATA=/var/lib/breeze-mock
+StateDirectory=breeze-mock
+DynamicUser=yes
+# dummy and attach segments add interfaces and addresses, through `ip`, which
+# inherits these; a blueprint that binds a port below 1024 needs the second.
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+# SIGTERM is caught: the run removes the interfaces and addresses it added.
+KillSignal=SIGTERM
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

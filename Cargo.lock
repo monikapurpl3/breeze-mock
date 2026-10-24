@@ -119,7 +119,7 @@ dependencies = [
 
 [[package]]
 name = "breeze-mock"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "breeze-auth",
  "breeze-device",

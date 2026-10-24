@@ -16,19 +16,24 @@ clients without touching a real unit or a real server.
 </div>
 
 ```console
-$ breeze-mock run examples/flat.xml
+$ sudo breeze-mock run examples/flat.xml
 
 ready.
   units:
-    Bedroom        10.77.1.21:6444  V3  id 18402913552064
-    Living room    10.77.1.22:6444  V3  id 40871283010291
-    Kitchen        10.77.1.23:6444  V2  id 22195700481352
-  servers:
-    home (Breeze Core 4.3.2)
-    https://breeze.flat.test:18443/  (resolve breeze.flat.test to 127.0.0.1)
-    legacy (Breeze Core 3.2.0)
-    http://127.0.0.1:18441/
+    Bedroom        10.77.1.21:6444  V3  id 153519409691494
+    Living room    10.77.1.22:6444  V3  id 156550161598606
+    Kitchen        10.77.1.23:6444  V3  id 153751957290936
+    Test bench     127.77.2.10:6444  V3  id 151068422923926  (this machine only)
+  server home -- Breeze Core 4.3.2 (4.3.2 profile), API key cb1742c0e0c23a1f7f071ab932cdb87f91dc4bbbc43eb0ab
+    http://127.0.0.1:18420/
+    http://breeze.test:18420/  (resolve breeze.test to 127.0.0.1)
+    https://127.0.0.1:18443/
+    https://breeze.test:18443/  (resolve breeze.test to 127.0.0.1)
+  server legacy -- Breeze Core 3.2.0 (3.2.0 profile), API key 4013145e90a910bad85403133847cfed99170c3bf0529a6c
+    http://127.0.0.1:18421/
   console: http://127.0.0.1:18499/
+  a real Breeze Core for these units: breeze-mock export breeze-core-config flat.xml -o config.json
+  the certificate to trust: breeze-mock export ca flat.xml -o breeze-mock-ca.pem
   Ctrl-C stops it.
 ```
 
@@ -98,8 +103,9 @@ It is a test tool, not a simulator of any one model: units behave like the
 ones it was measured against, which may not be yours. Older Breeze Core
 releases are reproduced by taking 4.3.2's features away, so their error
 messages are 4.3.2's. On Windows, units are either on loopback or share the
-PC's own LAN address; giving each one an address of its own needs Linux. V1
-units and Midea's cloud are not emulated.
+PC's own LAN address; giving each one an address of its own needs Linux.
+Breeze Core 4 drives V3 units only, so an emulated V2 unit shows how it
+copes with one it cannot drive. V1 units and Midea's cloud are not emulated.
 
 ## Security
 

@@ -291,7 +291,11 @@ The protocol of current units: a token handshake, then an encrypted session.
 
 #### `<v2>`
 
-Older units: no handshake, no credentials.
+Older units: no handshake, no credentials. Breeze Core 4 drives V3 units
+only: it finds a V2 unit in a scan and adds it, and then answers 503 ("unit
+has no V3 token and key configured") for it. A mock server does the same,
+whatever its profile, because it runs Breeze Core 4's code. A V2 unit is
+for testing exactly that, and for other clients of the LAN protocol.
 
 | Attribute | Value | Default | |
 |---|---|---|---|

@@ -99,18 +99,21 @@ sees any of it.
 
 **Across the LAN.** To test Breeze Core on another device (a router, a
 single-board computer, a NAS) against emulated units, the units must be on
-an address that device can reach, and then its own scan finds them:
+an address that device can reach. Give that Breeze Core a configuration
+directory of its own, so whatever it does stays out of your real one.
 
-- on Windows, use an `existing` segment with this PC's LAN address and a
-  port per unit, as in [`lan.xml`](../examples/lan.xml);
-- on Linux, either the same, or an `attach` segment that gives each unit an
-  address of its own on the LAN interface.
-
-On the other device, use a Breeze Core with a configuration directory of its
-own, then scan and add the units as you would real ones. The units' tokens
-and keys are needed for V3 units; `breeze-mock export breeze-core-config`
-gives them, or copy the exported `config.json` to that device and point its
-`AC_CONFIG_DIR` at it.
+- **On Linux**, an `attach` segment gives each unit an address of its own on
+  the LAN interface. The other Breeze Core then scans and adds them as it
+  would real units; for a V3 unit, give it the token and key that
+  `breeze-mock export breeze-core-config` lists.
+- **On Windows**, breeze-mock cannot add addresses, so the units share this
+  PC's own LAN address, each on a port of its own: an `existing` segment, as
+  in [`lan.xml`](../examples/lan.xml). A scan from the other Breeze Core
+  lists every one of them, but Breeze Core adds a unit *by address* and keeps
+  the first that answers there, so only one can be added that way. Copy the
+  exported `config.json` to that device instead, and point its
+  `AC_CONFIG_DIR` at the directory: that holds every unit with its port, as
+  well as its token and key.
 
 **Discovery on one Linux machine.** A `dummy` segment (on a private range)
 gives the units an interface of their own, which Breeze Core's scan covers
@@ -189,6 +192,13 @@ journalctl -u breeze-mock -f
 It runs as a dynamic user with only `CAP_NET_ADMIN` (for `dummy` and
 `attach` segments) and `CAP_NET_BIND_SERVICE` (for ports below 1024), and can
 write only `/var/lib/breeze-mock`: a server's `state-dir=` must be under it.
+That is also where its certificate authorities are, so export one from
+there, once the service has run:
+
+```sh
+sudo BREEZE_MOCK_DATA=/var/lib/breeze-mock breeze-mock export ca /etc/breeze-mock/blueprint.xml -o breeze-mock-ca.pem
+```
+
 Stopping it removes the interfaces and addresses it added; a run that was
 killed outright has its leftovers removed at the next start.
 
@@ -206,8 +216,10 @@ answer 404, fields it did not send (`not_applied`, a timer's `kind`) are
 removed, options it did not have (a timer `at` a time, beep control,
 compression) are not honoured, and `/api/version` and `/api/system` give its
 version, commit and features. What is not taken away is the wording of
-errors and the order of fields, which are 4.3.2's. A client that depends on
-an older release's exact error text needs that release itself.
+errors and the order of fields, which are 4.3.2's, and what 4.3.2 cannot do:
+it drives V3 units only, so a mock server of any profile answers 503 for a
+V2 unit. A client that depends on an older release's exact behaviour there
+needs that release itself.
 
 `/api/system` describes the blueprint's `<host>`, never the machine
 breeze-mock runs on: its paths are Breeze Core's packaged ones, its libc is
@@ -224,4 +236,6 @@ Core serves HTTPS).
   reached through an exported config, not a scan.
 - **The clock** is the real one, as Breeze Core's is: a skewed server clock
   is tested by setting the client's clock off.
+- **V2 units** are emulated, but Breeze Core 4, and so every mock server,
+  drives V3 units only.
 - **V1 units** (XML over TCP) are not emulated; neither is Midea's cloud.

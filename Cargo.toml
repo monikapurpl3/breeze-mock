@@ -1,6 +1,6 @@
 [package]
 name = "breeze-mock"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 description = "Mock Breeze Core servers and emulated Midea air conditioners, described in XML, for testing and debugging"
 license = "AGPL-3.0-or-later"
