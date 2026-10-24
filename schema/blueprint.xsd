@@ -769,29 +769,19 @@
                 <xs:enumeration value="openrc"/>
                 <xs:enumeration value="runit"/>
                 <xs:enumeration value="s6"/>
-                <xs:enumeration value="sysv"/>
                 <xs:enumeration value="procd"/>
+                <xs:enumeration value="rc.d"/>
                 <xs:enumeration value="launchd"/>
-                <xs:enumeration value="windows"/>
+                <xs:enumeration value="windows-sc"/>
+                <xs:enumeration value="termux-services"/>
                 <xs:enumeration value="none"/>
               </xs:restriction>
             </xs:simpleType>
           </xs:attribute>
           <xs:attribute name="cpu" type="bm:text"/>
           <xs:attribute name="cpus" type="bm:whole"/>
-          <xs:attribute name="memory-mb" type="bm:whole"/>
           <xs:attribute name="timezone" type="bm:text"/>
           <xs:attribute name="utc-offset" type="bm:signedDuration"/>
-          <xs:attribute name="container">
-            <xs:simpleType>
-              <xs:restriction base="xs:string">
-                <xs:enumeration value="docker"/>
-                <xs:enumeration value="podman"/>
-                <xs:enumeration value="lxc"/>
-                <xs:enumeration value="systemd-nspawn"/>
-              </xs:restriction>
-            </xs:simpleType>
-          </xs:attribute>
         </xs:complexType>
       </xs:element>
       <xs:element name="listen" maxOccurs="unbounded">

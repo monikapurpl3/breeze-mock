@@ -177,7 +177,7 @@ fn connection(listener: &Listener, stream: TcpStream) -> io::Result<()> {
         }
     };
     let listen = listener.addr.to_string();
-    handle(server, &listen, req, peer, &mut conn)
+    handle(server, &listen, listener.tls.is_some(), req, peer, &mut conn)
 }
 
 /// The server a request is for: the only one on the socket, or the one whose
@@ -213,10 +213,18 @@ const HOP_BY_HOP: &[&str] = &[
     "upgrade",
     "x-forwarded-for",
     "x-real-ip",
+    "x-forwarded-proto",
     "forwarded",
 ];
 
-fn handle(server: &MockServer, listen: &str, mut req: Request, peer: SocketAddr, out: &mut dyn Conn) -> io::Result<()> {
+fn handle(
+    server: &MockServer,
+    listen: &str,
+    tls: bool,
+    mut req: Request,
+    peer: SocketAddr,
+    out: &mut dyn Conn,
+) -> io::Result<()> {
     let started = Instant::now();
     let who = server.def.name.clone();
     if let Ok(mut s) = server.stats.lock() {
@@ -273,6 +281,9 @@ fn handle(server: &MockServer, listen: &str, mut req: Request, peer: SocketAddr,
     }
     let client = if server.def.pairing.lan_only { peer.ip() } else { IpAddr::from([127, 0, 0, 1]) };
     req.set_header("X-Forwarded-For", &client.to_string());
+    if tls {
+        req.set_header("X-Forwarded-Proto", "https");
+    }
     req.set_header("Connection", "close");
     if rewrite {
         req.remove_header("accept-encoding");
@@ -311,7 +322,7 @@ fn handle(server: &MockServer, listen: &str, mut req: Request, peer: SocketAddr,
                 .unwrap_or_default();
             pairing_started(server, &body, label);
         }
-        profile::rewrite_response(&server.def, listen, &req, &mut body);
+        profile::rewrite_response(&server.def, listen, tls, &req, &mut body);
         let bytes = serde_json::to_vec(&body).unwrap_or_default();
         head.remove_header("transfer-encoding");
         head.remove_header("content-encoding");

@@ -173,6 +173,27 @@ fn a_profile_is_the_release_it_names() {
     assert!(r.get("kind").is_none(), "4.1.1 timers have no kind: {r}");
     let r = call(now, "POST", "/api/timers", &auth("now-key-not-a-secret-01"), Some(json!({"unit_ids": [b], "minutes": 5}))).json();
     assert_eq!(r["kind"], "sleep");
+
+    // /api/system: the blueprint's machine, reached directly -- not the one
+    // breeze-mock runs on, and not a proxy in front of Breeze Core.
+    let r = call(now, "GET", "/api/system", &auth("now-key-not-a-secret-01"), None);
+    let text = String::from_utf8_lossy(&r.body).to_ascii_lowercase();
+    for leak in ["breeze-mock", "msvc", "appdata", "\\\\", "/tmp/"] {
+        assert!(!text.contains(leak), "/api/system gives away {leak:?}: {text}");
+    }
+    let s = r.json();
+    assert_eq!(
+        (&s["os"]["distro_id"], &s["os"]["distro_version"], &s["os"]["libc"]),
+        (&json!("almalinux"), &json!("9.6"), &json!("musl (static)"))
+    );
+    assert_eq!(s["os"]["hostname"], "now.mock");
+    assert_eq!(s["init"], json!({"name": "systemd", "detail": "systemctl status breeze-core"}));
+    assert!(s["machine_uptime_seconds"].is_number());
+    assert_eq!(s["connection"]["client_ip"], "127.0.0.1");
+    assert_eq!(s["connection"]["forwarded_for"], Value::Null);
+    assert_eq!(s["connection"]["behind_proxy_enabled"], false);
+    assert_eq!(s["connection"]["scheme"], "http");
+    assert_eq!(s["settings"]["behind_proxy"], false);
 }
 
 #[test]
@@ -297,7 +318,8 @@ fn tls_by_name_with_the_blueprints_own_authority() {
             r#"{}
   <server name="s" api-key="s-key-not-a-secret-01234"><build profile="4.3.2"/>
     <listen address="127.0.0.1" port="29151" tls="true"/>
-    <domain name="secure.test"><self-signed/></domain><manage unit="a"/></server>"#,
+    <domain name="secure.test"><self-signed/></domain>
+    <pairing approve="manual"><device label="test" token="{TOKEN}"/></pairing><manage unit="a"/></server>"#,
             units("127.91.5")
         ),
     );
@@ -324,6 +346,26 @@ fn tls_by_name_with_the_blueprints_own_authority() {
     };
     assert_eq!(get("secure.test"), Ok(200));
     assert!(get("elsewhere.test").is_err(), "a certificate for another name must not verify");
+
+    // Breeze Core never speaks TLS itself, so this is Breeze Core behind a
+    // proxy that does -- and /api/system says so, as it would there.
+    let name = rustls::pki_types::ServerName::try_from("secure.test").unwrap();
+    let conn = rustls::ClientConnection::new(Arc::clone(&config), name).unwrap();
+    let mut tls = rustls::StreamOwned::new(conn, TcpStream::connect("127.0.0.1:29151").unwrap());
+    write!(
+        tls,
+        "GET /api/system HTTP/1.1\r\nHost: secure.test\r\nX-API-Key: s-key-not-a-secret-01234\r\n\
+         Authorization: Bearer {TOKEN}\r\nX-Forwarded-Proto: gopher\r\nConnection: close\r\n\r\n"
+    )
+    .unwrap();
+    let mut r = BufReader::new(tls);
+    let head = http::read_response_head(&mut r).unwrap();
+    assert_eq!(head.status, 200);
+    let s: Value = serde_json::from_slice(&http::read_body(&head.headers, &mut r, true).unwrap()).unwrap();
+    assert_eq!(s["connection"]["scheme"], "https", "the client's own X-Forwarded-Proto is not believed");
+    assert_eq!(s["connection"]["behind_proxy_enabled"], true);
+    assert_eq!(s["connection"]["forwarded_for"], "127.0.0.1");
+    assert_eq!(s["connection"]["request_url"], "https://secure.test/api/system");
 }
 
 #[test]

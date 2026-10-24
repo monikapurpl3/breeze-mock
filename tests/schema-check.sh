@@ -5,7 +5,7 @@
 set -u
 cd "$(dirname "$0")/.."
 fail=0
-for f in examples/*.xml; do
+for f in examples/*.xml packaging/blueprint.xml; do
   if ! xmllint --noout --nonet --schema schema/blueprint.xsd "$f" >/dev/null 2>&1; then
     echo "FAIL  $f: the schema rejects an example"; fail=1
   fi
@@ -19,5 +19,5 @@ for f in tests/fixtures/bad/*.xml; do
     echo "FAIL  $f: marked xsd: $want, but the schema $got it"; fail=1
   fi
 done
-[ "$fail" = 0 ] && echo "schema agrees: $(ls examples/*.xml | wc -l) examples, $n bad fixtures"
+[ "$fail" = 0 ] && echo "schema agrees: $(ls examples/*.xml packaging/blueprint.xml | wc -l) examples, $n bad fixtures"
 exit "$fail"

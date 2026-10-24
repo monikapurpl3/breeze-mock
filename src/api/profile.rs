@@ -103,7 +103,7 @@ fn set(v: &mut Value, key: &str, new: Value) {
     }
 }
 
-pub fn rewrite_response(server: &Server, listen: &str, req: &Request, body: &mut Value) {
+pub fn rewrite_response(server: &Server, listen: &str, tls: bool, req: &Request, body: &mut Value) {
     let b = &server.build;
     match req.path() {
         "/api/version" => {
@@ -112,7 +112,7 @@ pub fn rewrite_response(server: &Server, listen: &str, req: &Request, body: &mut
             set(body, "features", b.features.clone().into());
             set(body, "auth_versions", b.auth_versions.clone().into());
         }
-        "/api/system" => system(server, listen, body),
+        "/api/system" => system(server, listen, tls, body),
         p if p == "/api/timers" || p.starts_with("/api/timers/") => strip_kind(body),
         _ => {
             if let Some(obj) = body.as_object_mut() {
@@ -138,7 +138,7 @@ fn strip_kind(v: &mut Value) {
 /// The machine the blueprint says this server runs on, in place of the one
 /// breeze-mock really runs on -- which a mock should neither claim to be nor
 /// leak the paths of.
-fn system(server: &Server, listen: &str, v: &mut Value) {
+fn system(server: &Server, listen: &str, tls: bool, v: &mut Value) {
     let b = &server.build;
     let h: &Host = &server.host;
     if let Some(s) = v.get_mut("server") {
@@ -150,11 +150,16 @@ fn system(server: &Server, listen: &str, v: &mut Value) {
         set(s, "utc_offset_seconds", h.utc_offset_seconds.into());
     }
     if let Some(os) = v.get_mut("os") {
+        let (id, version) = distro(&h.os);
         set(os, "system", "Linux".into());
         set(os, "hostname", h.hostname.clone().into());
         set(os, "pretty_name", h.os.clone().into());
         set(os, "distribution", h.os.clone().into());
+        set(os, "distro_id", id.clone());
+        set(os, "distribution_id", id);
+        set(os, "distro_version", version);
         set(os, "kernel", h.kernel.clone().into());
+        set(os, "kernel_version", "#1 SMP PREEMPT_DYNAMIC".into());
         set(os, "platform", "linux".into());
         set(os, "family", "unix".into());
         set(os, "arch", h.arch.clone().into());
@@ -163,7 +168,24 @@ fn system(server: &Server, listen: &str, v: &mut Value) {
     }
     if let Some(init) = v.get_mut("init") {
         set(init, "name", h.init.clone().into());
-        set(init, "detail", "from the blueprint".into());
+        set(init, "detail", init_detail(&h.init).into());
+    }
+    // A Linux machine's uptime, which the host breeze-mock runs on may not
+    // have (Windows reports none): the machine came up with the server.
+    if let Some(up) = v.get("server").and_then(|s| s.get("uptime_seconds")).cloned() {
+        set(v, "machine_uptime_seconds", up);
+    }
+    // Plain HTTP is Breeze Core reached directly. TLS is Breeze Core behind a
+    // proxy that terminates it, which is the only way Breeze Core serves TLS,
+    // and that is what the backend already reports.
+    if !tls {
+        if let Some(c) = v.get_mut("connection") {
+            set(c, "forwarded_for", Value::Null);
+            set(c, "behind_proxy_enabled", false.into());
+        }
+        if let Some(s) = v.get_mut("settings") {
+            set(s, "behind_proxy", false.into());
+        }
     }
     if let Some(cpu) = v.get_mut("cpu") {
         set(cpu, "model", h.cpu.clone().into());
@@ -209,9 +231,46 @@ fn system(server: &Server, listen: &str, v: &mut Value) {
     }
 }
 
+/// What os-release would say for a PRETTY_NAME: `AlmaLinux 9.6 (Sage Margay)`
+/// is `almalinux`, `9.6`.
+fn distro(pretty: &str) -> (Value, Value) {
+    let id: String = pretty
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .collect::<String>()
+        .to_ascii_lowercase();
+    let version = pretty
+        .split_whitespace()
+        .find(|w| w.starts_with(|c: char| c.is_ascii_digit()))
+        .map(|w| w.trim_end_matches(|c: char| !c.is_ascii_alphanumeric()).to_string());
+    (
+        if id.is_empty() { Value::Null } else { id.into() },
+        version.map(Value::from).unwrap_or(Value::Null),
+    )
+}
+
+/// The detail Breeze Core gives with each init system it recognises.
+fn init_detail(init: &str) -> &'static str {
+    match init {
+        "systemd" => "systemctl status breeze-core",
+        "openrc" => "rc-service breeze-core status",
+        "procd" => "/etc/init.d/breeze-core status",
+        "runit" | "termux-services" => "sv status breeze-core",
+        "s6" => "s6-rc -a list",
+        "rc.d" => "service breeze_core status",
+        "launchd" => "launchctl print system/breeze-core",
+        "windows-sc" => "Windows Service Control Manager",
+        _ => "started from a shell",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn routes_belong_to_their_features() {
@@ -224,5 +283,14 @@ mod tests {
         assert_eq!(feature_of("DELETE", "/api/timers/abc"), Some("sleep_timer"));
         assert_eq!(feature_of("POST", "/api/auth/enroll/start"), Some("device_pairing"));
         assert_eq!(feature_of("GET", "/api/health"), None);
+    }
+
+    #[test]
+    fn a_pretty_name_gives_os_release_fields() {
+        let d = |s| distro(s);
+        assert_eq!(d("AlmaLinux 9.6 (Sage Margay)"), (json!("almalinux"), json!("9.6")));
+        assert_eq!(d("Debian GNU/Linux 12 (bookworm)"), (json!("debian"), json!("12")));
+        assert_eq!(d("Ubuntu 24.04.1 LTS"), (json!("ubuntu"), json!("24.04.1")));
+        assert_eq!(d("Arch Linux"), (json!("arch"), Value::Null));
     }
 }

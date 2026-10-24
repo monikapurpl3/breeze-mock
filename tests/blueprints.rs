@@ -52,10 +52,17 @@ fn is_library(path: &Path) -> bool {
     std::fs::read_to_string(path).unwrap().contains("<library")
 }
 
+/// The examples, and the blueprint the packages install.
+fn examples() -> Vec<PathBuf> {
+    let mut v = xml_files(&root().join("examples"));
+    v.push(root().join("packaging/blueprint.xml"));
+    v
+}
+
 #[test]
 fn every_example_loads() {
     let mut n = 0;
-    for f in xml_files(&root().join("examples")) {
+    for f in examples() {
         if is_library(&f) {
             continue;
         }
@@ -117,7 +124,7 @@ fn the_schema_agrees_with_the_tool() {
         return;
     };
     let mut failures = Vec::new();
-    for f in xml_files(&root().join("examples")) {
+    for f in examples() {
         if !schema_accepts(&lint, &f) {
             failures.push(format!("{}: the schema rejects an example", f.display()));
         }

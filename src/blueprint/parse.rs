@@ -407,6 +407,23 @@ fn library(
     if root.name() != "library" {
         return Err(root.err("an included file must be a <library> of models"));
     }
+    library_models(&root, models)
+}
+
+/// A `<library>` on its own, as `check` reads one: the names of its models.
+pub fn load_library(path: &Path) -> Result<Vec<String>> {
+    let text = read(path, None)?;
+    let doc = xml::parse_document(path, &text)?;
+    let root = El::new(doc.root_element(), path)?;
+    if root.name() != "library" {
+        return Err(root.err("the root element of a library must be <library>"));
+    }
+    let mut models = BTreeMap::new();
+    library_models(&root, &mut models)?;
+    Ok(models.into_keys().collect())
+}
+
+fn library_models(root: &El, models: &mut BTreeMap<String, (ModelDef, Error)>) -> Result<()> {
     root.need("version", xml::one_of(&["1"]))?;
     root.done()?;
     let mut seq = Seq::new(&root, &["model"])?;
@@ -1470,8 +1487,8 @@ fn host(el: &El) -> Result<Host> {
             .get(
                 "init",
                 xml::one_of(&[
-                    "systemd", "openrc", "runit", "s6", "sysv", "procd", "launchd", "windows",
-                    "none",
+                    "systemd", "openrc", "runit", "s6", "procd", "rc.d", "launchd", "windows-sc",
+                    "termux-services", "none",
                 ]),
             )?
             .unwrap_or_else(|| "systemd".into()),
@@ -1479,15 +1496,10 @@ fn host(el: &El) -> Result<Host> {
             .get("cpu", xml::text)?
             .unwrap_or_else(|| "Mock CPU @ 2.4GHz".into()),
         cpus: el.get("cpus", xml::unsigned::<u32>)?.unwrap_or(4),
-        memory_mb: el.get("memory-mb", xml::unsigned::<u64>)?.unwrap_or(4096),
         timezone: el
             .get("timezone", xml::text)?
             .unwrap_or_else(|| "UTC".into()),
         utc_offset_seconds: el.get("utc-offset", xml::signed_seconds)?.unwrap_or(0),
-        container: el.get(
-            "container",
-            xml::one_of(&["docker", "podman", "lxc", "systemd-nspawn"]),
-        )?,
     };
     el.done()?;
     el.empty()?;
@@ -1503,10 +1515,8 @@ fn default_host(name: &str) -> Host {
         init: "systemd".into(),
         cpu: "Mock CPU @ 2.4GHz".into(),
         cpus: 4,
-        memory_mb: 4096,
         timezone: "UTC".into(),
         utc_offset_seconds: 0,
-        container: None,
     }
 }
 

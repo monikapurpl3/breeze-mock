@@ -90,6 +90,17 @@ fn options(rest: &[&str], server_allowed: bool) -> Option<(Option<String>, Optio
 }
 
 fn check(path: &Path) -> Result<(), String> {
+    // A library of models is checked as one, so an included file can be
+    // checked before anything includes it.
+    let root = std::fs::read_to_string(path).ok().and_then(|t| {
+        let doc = roxmltree::Document::parse(&t).ok()?;
+        Some(doc.root_element().tag_name().name().to_string())
+    });
+    if root.as_deref() == Some("library") {
+        let models = blueprint::load_library(path).map_err(|e| e.to_string())?;
+        println!("{}: library is valid: {} model(s): {}", path.display(), models.len(), models.join(", "));
+        return Ok(());
+    }
     let bp = blueprint::load(path).map_err(|e| e.to_string())?;
     println!(
         "{}: blueprint {:?} is valid: {} segment(s), {} unit(s), {} server(s)",

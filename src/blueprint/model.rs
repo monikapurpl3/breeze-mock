@@ -354,10 +354,8 @@ pub struct Host {
     pub init: String,
     pub cpu: String,
     pub cpus: u32,
-    pub memory_mb: u64,
     pub timezone: String,
     pub utc_offset_seconds: i64,
-    pub container: Option<String>,
 }
 
 #[derive(Debug, Clone)]
