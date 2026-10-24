@@ -101,7 +101,7 @@ fn call(addr: &str, method: &str, path: &str, headers: &[(&str, &str)], body: Op
 
 const TOKEN: &str = "test-device-token-not-a-secret-0123456789";
 
-fn auth<'a>(key: &'a str) -> [(&'a str, &'a str); 2] {
+fn auth(key: &str) -> [(&str, &str); 2] {
     [("X-API-Key", key), ("Authorization", "Bearer test-device-token-not-a-secret-0123456789")]
 }
 
