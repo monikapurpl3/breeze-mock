@@ -16,7 +16,7 @@ for changing the code.
 | `src/net.rs` | segments: dummy interfaces and attached addresses on Linux, bind checks |
 | `src/console.rs`, `src/export.rs`, `src/run.rs` | the console, `export`, `run` |
 | `tests/` | `blueprints.rs` (examples + 45 bad fixtures, tool and XSD), `lan.rs` (units driven by Breeze Core's own client), `api.rs` (the running mock from outside), `differential.rs` (against a real breeze-core), `docs.rs` (docs/blueprint.md against the XSD) |
-| `packaging/` | `build.sh` (RPMs and the Windows zip), nfpm recipe, systemd unit, the packaged default blueprint |
+| `packaging/` | `build.sh` (RPMs, the Windows zip and the bare programs), nfpm recipe, systemd unit, the packaged default blueprint, `macos/` (the CoreFoundation link stub) |
 
 ## Rules that are not obvious from the code
 
@@ -92,5 +92,18 @@ need not be shared with Docker).
 
 ## Publishing
 
-Local repository only, so far. A GitHub repository, and where the RPMs and
-the zip are published, are the maintainer's decision.
+The GitHub repository (monikapurpl3/breeze-mock) is public. The bare
+programs `build.sh` makes (Linux amd64/arm64, macOS arm64/x86_64, Windows)
+are published unlisted on aspic under `/breeze-mock/`, with SHA256SUMS: the
+μCore deployer downloads its pinned one to run simulated units beside an
+emulated board, so **a new release means a new pin there**. Each published
+build is tagged here (`v1.0.1` on), which is the source its AGPL-3.0 points
+to. The RPMs and the zip are not published; where, if anywhere, is the
+maintainer's decision.
+
+## macOS
+
+Cross-built with zig and the CoreFoundation link stub in
+`packaging/macos/` (its README says why); `ctrlc` is held at 3.4 because 3.5
+links Objective-C and Foundation, which zig lacks. Built and inspected, not yet
+run on a Mac.

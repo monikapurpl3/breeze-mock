@@ -4,6 +4,10 @@
 #   packaging/out/breeze-mock-VERSION-1.x86_64.rpm     static musl, linked by zig
 #   packaging/out/breeze-mock-VERSION-1.aarch64.rpm
 #   packaging/out/breeze-mock-VERSION-windows-x86_64.zip   (on Windows only)
+#   packaging/out/breeze-mock-VERSION-LABEL[.exe]      the bare programs, for
+#       linux-amd64, linux-arm64 (static musl), macos-arm64, macos-x86_64
+#       (zig, with the CoreFoundation link stub in packaging/macos/) and
+#       windows-x86_64 (on Windows only): what the μCore deployer downloads
 #   packaging/out/SHA256SUMS
 #
 # Needs cargo-zigbuild, zig 0.16.0 (BM_ZIG, else `zig` on PATH; another
@@ -35,6 +39,8 @@ done
 
 rm -rf "$STAGE"
 mkdir -p "$STAGE/share/doc" "$STAGE/share/examples" "$STAGE/share/schema" "$STAGE/scripts"
+# Every earlier release's output too: SHA256SUMS covers whatever is left here.
+rm -f "$OUT"/*.rpm "$OUT"/*.zip "$OUT"/breeze-mock-*-linux-* "$OUT"/breeze-mock-*-macos-* "$OUT"/breeze-mock-*-windows-x86_64.exe
 
 # label (nfpm's arch) | rust target
 for pair in amd64:x86_64-unknown-linux-musl arm64:aarch64-unknown-linux-musl; do
@@ -43,6 +49,19 @@ for pair in amd64:x86_64-unknown-linux-musl arm64:aarch64-unknown-linux-musl; do
   cargo zigbuild --release --locked --target "$target"
   mkdir -p "$STAGE/bin/$label"
   cp "target/$target/release/breeze-mock" "$STAGE/bin/$label/"
+  cp "target/$target/release/breeze-mock" "$OUT/breeze-mock-$VERSION-linux-$label"
+done
+
+# macOS: bare programs only. zig has no frameworks, and chrono's clock wants
+# CoreFoundation, so it links against the stub in packaging/macos/.
+fw="$REPO/packaging/macos"
+command -v cygpath >/dev/null 2>&1 && fw=$(cygpath -m "$fw")
+for pair in arm64:aarch64-apple-darwin x86_64:x86_64-apple-darwin; do
+  label="${pair%%:*}" target="${pair#*:}"
+  echo "== $target"
+  env "CARGO_TARGET_$(echo "$target" | tr 'a-z-' 'A-Z_')_RUSTFLAGS=-C link-arg=-F$fw" \
+    cargo zigbuild --release --locked --target "$target"
+  cp "target/$target/release/breeze-mock" "$OUT/breeze-mock-$VERSION-macos-$label"
 done
 
 cp packaging/nfpm.yaml packaging/breeze-mock.service packaging/blueprint.xml "$STAGE/"
@@ -83,10 +102,11 @@ case "$(uname -s)" in
     # backslashes into the names, which unzip elsewhere does not take.
     (cd "$OUT" && /c/Windows/System32/tar.exe -a -cf "$z.zip" "$z")
     rm -rf "$OUT/$z"
+    cp target/release/breeze-mock.exe "$OUT/breeze-mock-$VERSION-windows-x86_64.exe"
     ;;
 esac
 
-(cd "$OUT" && shopt -s nullglob && sha256sum -- *.rpm *.zip | sed 's/ \*/  /' > SHA256SUMS)
+(cd "$OUT" && shopt -s nullglob && sha256sum -- *.rpm *.zip breeze-mock-"$VERSION"-linux-* breeze-mock-"$VERSION"-macos-* breeze-mock-"$VERSION"-windows-*.exe | sed 's/ \*/  /' > SHA256SUMS)
 echo "== done"
 ls -l "$OUT"
 cat "$OUT/SHA256SUMS"

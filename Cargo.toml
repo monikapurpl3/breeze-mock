@@ -1,6 +1,6 @@
 [package]
 name = "breeze-mock"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 description = "Mock Breeze Core servers and emulated Midea air conditioners, described in XML, for testing and debugging"
 license = "AGPL-3.0-or-later"
@@ -39,8 +39,9 @@ socket2 = "0.5"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rcgen = { version = "0.13", default-features = false, features = ["ring", "pem"] }
 # Clean up dummy interfaces and address aliases on Ctrl-C and SIGTERM, which
-# is how systemd stops a service.
-ctrlc = { version = "3", features = ["termination"] }
+# is how systemd stops a service. Held at 3.4: 3.5 links Objective-C and
+# Foundation on macOS, which zig (the macOS cross-linker here) does not have.
+ctrlc = { version = "~3.4", features = ["termination"] }
 
 [dev-dependencies]
 
